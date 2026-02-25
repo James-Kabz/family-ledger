@@ -1,3 +1,6 @@
+import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaClient } from "@prisma/client";
+
 import { normalizeName, normalizeRef } from "@/lib/utils";
 import type { Contribution, LedgerUpdate } from "@/lib/types";
 import { DuplicateRefError, type CreateContributionInput, type CreateLedgerUpdateInput, type LedgerRepository } from "@/lib/repo/types";
@@ -20,20 +23,10 @@ declare global {
   var __familyLedgerPrisma: PrismaClientLike | undefined;
 }
 
-async function loadPrismaClientCtor(): Promise<any> {
-  // Avoid a hard compile-time dependency so the project runs without Prisma installed.
-  return (new Function("return import('@prisma/client')")() as Promise<any>).then((m) => m.PrismaClient);
-}
-
-async function loadPrismaPgAdapterCtor(): Promise<any> {
-  return (new Function("return import('@prisma/adapter-pg')")() as Promise<any>).then((m) => m.PrismaPg);
-}
-
 async function getPrisma(): Promise<PrismaClientLike> {
   if (globalThis.__familyLedgerPrisma) return globalThis.__familyLedgerPrisma;
 
   try {
-    const [PrismaClient, PrismaPg] = await Promise.all([loadPrismaClientCtor(), loadPrismaPgAdapterCtor()]);
     const connectionString = process.env.DATABASE_URL;
     if (!connectionString) {
       throw new Error("DATABASE_URL is required when USE_DB=true");
