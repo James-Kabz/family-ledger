@@ -90,7 +90,7 @@ export async function createContributionAction(
   revalidatePath("/");
   revalidatePath("/contributions");
 
-  return { success: true, warning };
+  return { success: true, warning: warning ?? undefined };
 }
 
 export async function deleteContributionAction(formData: FormData) {

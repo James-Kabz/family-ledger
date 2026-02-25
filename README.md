@@ -138,6 +138,7 @@ When you change the Prisma schema:
 ```bash
 npm install @prisma/client
 npm install -D prisma
+npm install @prisma/adapter-pg pg dotenv
 ```
 
 2. Add env variables (`.env.local`):
@@ -148,6 +149,12 @@ USE_DB=true
 DATABASE_URL=postgresql://USER:PASSWORD@HOST/db?sslmode=require
 DIRECT_URL=postgresql://USER:PASSWORD@HOST/db?sslmode=require
 ```
+
+Prisma 7 note:
+
+- This project uses `prisma.config.ts` for CLI connection config (migrations/generate)
+- `DIRECT_URL` is preferred for Prisma CLI commands
+- Runtime queries use `DATABASE_URL` through the Prisma PostgreSQL adapter
 
 3. Create and apply migration:
 

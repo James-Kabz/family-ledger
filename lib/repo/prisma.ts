@@ -25,16 +25,27 @@ async function loadPrismaClientCtor(): Promise<any> {
   return (new Function("return import('@prisma/client')")() as Promise<any>).then((m) => m.PrismaClient);
 }
 
+async function loadPrismaPgAdapterCtor(): Promise<any> {
+  return (new Function("return import('@prisma/adapter-pg')")() as Promise<any>).then((m) => m.PrismaPg);
+}
+
 async function getPrisma(): Promise<PrismaClientLike> {
   if (globalThis.__familyLedgerPrisma) return globalThis.__familyLedgerPrisma;
 
   try {
-    const PrismaClient = await loadPrismaClientCtor();
-    globalThis.__familyLedgerPrisma = new PrismaClient();
-    return globalThis.__familyLedgerPrisma;
+    const [PrismaClient, PrismaPg] = await Promise.all([loadPrismaClientCtor(), loadPrismaPgAdapterCtor()]);
+    const connectionString = process.env.DATABASE_URL;
+    if (!connectionString) {
+      throw new Error("DATABASE_URL is required when USE_DB=true");
+    }
+
+    const adapter = new PrismaPg({ connectionString });
+    const client = new PrismaClient({ adapter }) as PrismaClientLike;
+    globalThis.__familyLedgerPrisma = client;
+    return client;
   } catch (error) {
     throw new Error(
-      "USE_DB=true but Prisma is not available. Install prisma + @prisma/client, run migrations, and generate the client.",
+      "USE_DB=true but Prisma runtime is not ready. Install prisma + @prisma/client + @prisma/adapter-pg + pg, set DATABASE_URL, run migrations, and generate the client.",
       { cause: error },
     );
   }
