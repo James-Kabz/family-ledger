@@ -1,0 +1,31 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Contribution {
+  id            String   @id @default(cuid())
+  name          String
+  amount        Int
+  ref           String?  @unique
+  contributedAt DateTime
+  note          String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([contributedAt(sort: Desc)])
+}
+
+model LedgerUpdate {
+  id               String   @id @default(cuid())
+  cutoffAt         DateTime
+  generatedMessage String
+  createdAt        DateTime @default(now())
+
+  @@index([cutoffAt(sort: Desc)])
+}
