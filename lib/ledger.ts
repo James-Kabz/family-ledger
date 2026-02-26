@@ -62,14 +62,17 @@ export function buildWhatsAppUpdateMessage(input: {
   const dynamicCandidates = sortedByTime.filter(
     (row) => !fixedKeys.has(normalizePinnedKey(row.name, row.amount)),
   );
-  const listMax = Math.max(1, Number(process.env.WHATSAPP_EXPORT_MAX_ITEMS ?? "6") || 6);
-  const dynamicSlots = Math.max(0, listMax - fixedRows.length);
-  const visibleDynamic = dynamicCandidates.slice(0, dynamicSlots);
+  const configuredMax = Number(process.env.WHATSAPP_EXPORT_MAX_ITEMS ?? "");
+  const hasConfiguredMax = Number.isFinite(configuredMax) && configuredMax > 0;
+  const dynamicSlots = hasConfiguredMax ? Math.max(0, Math.floor(configuredMax) - fixedRows.length) : dynamicCandidates.length;
+  const visibleDynamic = dynamicSlots > 0 ? dynamicCandidates.slice(-dynamicSlots) : [];
 
   const formatPlainAmount = (amount: number) => new Intl.NumberFormat("en-KE").format(amount);
   const budgetLine =
     process.env.WHATSAPP_BUDGET_LINE?.trim() ??
     "Our total budget *ksh.1.7M* (inclusive of hospital bill and burial preparations budget)";
+  const officialRecipientName = process.env.WHATSAPP_OFFICIAL_RECIPIENT_NAME?.trim() || "James Njoroge";
+  const officialRecipientPhone = process.env.WHATSAPP_OFFICIAL_RECIPIENT_PHONE?.trim() || "0740289578";
   const budgetTarget = Number(process.env.TARGET_BUDGET_KES ?? "");
   const hasBudgetTarget = Number.isFinite(budgetTarget) && budgetTarget > 0;
 
@@ -81,11 +84,18 @@ export function buildWhatsAppUpdateMessage(input: {
     lines.push(`Our total budget *ksh.${new Intl.NumberFormat("en-KE").format(budgetTarget)}*`);
   }
   lines.push("");
+  lines.push("Official recipient:");
+  lines.push(`*${officialRecipientName}* - *${officialRecipientPhone}*`);
+  lines.push("");
 
-  const visibleList = [
+  let visibleList = [
     ...fixedRows.map((row) => ({ name: row.name, amount: row.amount })),
     ...visibleDynamic.map((row) => ({ name: row.name, amount: row.amount })),
-  ].slice(0, listMax);
+  ];
+
+  if (hasConfiguredMax) {
+    visibleList = visibleList.slice(0, Math.floor(configuredMax));
+  }
 
   if (visibleList.length === 0) {
     lines.push("No contributions recorded yet.");
