@@ -10,7 +10,9 @@ A Next.js App Router (TypeScript) app for manually tracking funeral contribution
 - Duplicate prevention by M-Pesa reference
 - Duplicate warning for same name + amount within 10 minutes when no ref is provided
 - Dashboard totals + WhatsApp update generator
+- WhatsApp export in numbered checklist style (time-ordered entries)
 - Update cutoff tracking (`new since last update`)
+- Safaricom statement PDF import (filters entries with `Funds received from`)
 - Repository abstraction with:
   - `InMemoryRepository` (default)
   - `PrismaRepository` (feature-flagged with `USE_DB=true`)
@@ -35,6 +37,13 @@ cp .env.example .env.local
 ```env
 ADMIN_PASSWORD=your-strong-password
 USE_DB=false
+```
+
+Optional WhatsApp export customization:
+
+```env
+TARGET_BUDGET_KES=1700000
+WHATSAPP_BUDGET_LINE=Our total budget is *ksh.1.7M* (inclusive of hospital bill and burial preparations budget)
 ```
 
 4. Run the app:
@@ -180,3 +189,4 @@ npm run dev
 - The Prisma repository is only used when `USE_DB=true`.
 - If `USE_DB=true` but Prisma is not installed/generated, the app throws a descriptive error.
 - For production on Vercel, set `SESSION_SECRET` explicitly (do not rely on the fallback).
+- PDF import parsing is heuristic-based and currently targets Safaricom statement text that includes `Funds received from` in the details field. If your statement format differs, parser tuning may be needed.

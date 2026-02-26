@@ -8,6 +8,7 @@ import { getRepository, DuplicateRefError } from "@/lib/repo";
 import { loginSchema } from "@/lib/validation/auth";
 import { contributionInputSchema } from "@/lib/validation/contribution";
 import { buildWhatsAppUpdateMessage, computeDashboardMetrics, findNearDuplicateWarning } from "@/lib/ledger";
+import { extractTextFromPdfBuffer, parseSafaricomStatementText } from "@/lib/statement-import";
 
 export type LoginActionState = {
   error?: string;
@@ -131,7 +132,12 @@ export async function generateUpdateAction(
 
   const metrics = computeDashboardMetrics(contributions, latestUpdate?.cutoffAt ?? null);
   const generatedAt = new Date().toISOString();
-  const message = buildWhatsAppUpdateMessage({ generatedAt, metrics, includeAllRunningTotals });
+  const message = buildWhatsAppUpdateMessage({
+    generatedAt,
+    metrics,
+    contributions,
+    includeAllRunningTotals,
+  });
 
   await repo.createUpdate({ cutoffAt: generatedAt, generatedMessage: message });
 
@@ -145,5 +151,97 @@ export async function generateUpdateAction(
       newAmount: metrics.newSinceLastUpdateAmount,
       newCount: metrics.newSinceLastUpdateCount,
     },
+  };
+}
+
+export type StatementImportState = {
+  success?: boolean;
+  error?: string;
+  detectedCount?: number;
+  importedCount?: number;
+  skippedCount?: number;
+  warnings?: string[];
+  preview?: Array<{
+    name: string;
+    amount: number;
+    contributedAt?: string;
+    ref?: string;
+  }>;
+};
+
+export async function importStatementPdfAction(
+  _: StatementImportState,
+  formData: FormData,
+): Promise<StatementImportState> {
+  await requireAuth();
+
+  const file = formData.get("statementPdf");
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: "Please choose a PDF statement file." };
+  }
+
+  if (!file.name.toLowerCase().endsWith(".pdf")) {
+    return { error: "Only PDF files are supported." };
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  let text = "";
+  try {
+    text = await extractTextFromPdfBuffer(buffer);
+  } catch {
+    return {
+      error: "Failed to read the PDF. Try another statement export or share a sample text snippet for parser tuning.",
+    };
+  }
+
+  const parsedRows = parseSafaricomStatementText(text);
+  if (parsedRows.length === 0) {
+    return {
+      error:
+        "No 'Funds received from' entries were detected. The statement format may differ from the current parser.",
+    };
+  }
+
+  const repo = getRepository();
+  let importedCount = 0;
+  let skippedCount = 0;
+  const warnings: string[] = [];
+
+  for (const row of parsedRows) {
+    try {
+      await repo.createContribution({
+        name: row.name,
+        amount: row.amount,
+        ref: row.ref ?? null,
+        contributedAt: row.contributedAt,
+        note: "Imported from Safaricom PDF statement",
+      });
+      importedCount += 1;
+    } catch (error) {
+      if (error instanceof DuplicateRefError) {
+        skippedCount += 1;
+        continue;
+      }
+
+      skippedCount += 1;
+      warnings.push(`Skipped ${row.name} (${row.amount}) due to an unexpected error.`);
+    }
+  }
+
+  revalidatePath("/");
+  revalidatePath("/contributions");
+
+  return {
+    success: true,
+    detectedCount: parsedRows.length,
+    importedCount,
+    skippedCount,
+    warnings: warnings.slice(0, 5),
+    preview: parsedRows.slice(0, 12).map((row) => ({
+      name: row.name,
+      amount: row.amount,
+      contributedAt: row.contributedAt,
+      ref: row.ref,
+    })),
   };
 }

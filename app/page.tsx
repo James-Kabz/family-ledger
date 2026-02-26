@@ -4,6 +4,7 @@ import { ContributionForm } from "@/components/contribution-form";
 import { DashboardPanel } from "@/components/dashboard-panel";
 import { LogoutButton } from "@/components/logout-button";
 import { MobileActionModal } from "@/components/mobile-action-modal";
+import { StatementImportForm } from "@/components/statement-import-form";
 import { SubmitButton } from "@/components/submit-button";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -224,12 +225,23 @@ export default async function DashboardPage({ searchParams }: PageProps) {
               </CardContent>
             </Card>
           </MobileActionModal>
+
+          <MobileActionModal
+            triggerLabel="Import PDF statement"
+            title="Import Safaricom statement PDF"
+            description="Import only transactions with 'Funds received from' in the details column."
+            triggerVariant="outline"
+            contentClassName="border-0 bg-transparent p-0 shadow-none sm:max-w-xl"
+          >
+            <StatementImportForm />
+          </MobileActionModal>
         </CardContent>
       </Card>
 
       <div className="grid gap-6 lg:grid-cols-[0.95fr_1.55fr]">
         <div className="hidden space-y-6 lg:block">
           <ContributionForm />
+          <StatementImportForm />
           <Card>
             <CardHeader>
               <CardTitle>Ledger filter</CardTitle>

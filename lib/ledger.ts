@@ -47,37 +47,44 @@ export function computeDashboardMetrics(contributions: Contribution[], lastCutof
 export function buildWhatsAppUpdateMessage(input: {
   generatedAt: string;
   metrics: DashboardMetrics;
+  contributions: Contribution[];
   includeAllRunningTotals?: boolean;
 }) {
-  const { generatedAt, metrics } = input;
-  const includeAll = Boolean(input.includeAllRunningTotals);
-  const runningTotals = includeAll ? metrics.runningTotals : metrics.runningTotals.slice(0, 15);
+  const { generatedAt, metrics, contributions } = input;
+  const sortedByTime = [...contributions].sort(
+    (a, b) => new Date(a.contributedAt).getTime() - new Date(b.contributedAt).getTime(),
+  );
 
-  const lines = [
-    "FAMILY CONTRIBUTIONS UPDATE",
-    `Last updated: ${formatDateTime(generatedAt)}`,
-    `Total collected: ${formatKes(metrics.totalCollected)}`,
-    `New since last update: ${formatKes(metrics.newSinceLastUpdateAmount)} (${metrics.newSinceLastUpdateCount})`,
-    "New contributions:",
-  ];
+  const formatPlainAmount = (amount: number) => new Intl.NumberFormat("en-KE").format(amount);
+  const budgetLine = process.env.WHATSAPP_BUDGET_LINE?.trim();
+  const budgetTarget = Number(process.env.TARGET_BUDGET_KES ?? "");
+  const hasBudgetTarget = Number.isFinite(budgetTarget) && budgetTarget > 0;
 
-  if (metrics.newContributions.length === 0) {
-    lines.push("- None");
+  const lines = ["*CONTRIBUTION LIST*"];
+
+  if (budgetLine) {
+    lines.push(budgetLine);
+  } else if (hasBudgetTarget) {
+    lines.push(`Our total budget is *ksh.${new Intl.NumberFormat("en-KE").format(budgetTarget)}*`);
+  }
+
+  if (sortedByTime.length === 0) {
+    lines.push("No contributions recorded yet.");
   } else {
-    for (const item of metrics.newContributions) {
-      const refPart = item.ref ? ` (${item.ref})` : "";
-      lines.push(`- ${item.name} — ${formatKes(item.amount)}${refPart}`);
+    for (const [index, item] of sortedByTime.entries()) {
+      lines.push(`${index + 1}.${item.name} - ${formatPlainAmount(item.amount)}✅`);
     }
   }
 
-  lines.push("Running totals:");
-  if (runningTotals.length === 0) {
-    lines.push("- None");
-  } else {
-    for (const row of runningTotals) {
-      lines.push(`- ${row.name} — ${formatKes(row.total)}`);
-    }
+  lines.push("");
+  lines.push(`Total collected: ${formatKes(metrics.totalCollected)}`);
+  if (hasBudgetTarget) {
+    const remaining = Math.max(0, budgetTarget - metrics.totalCollected);
+    lines.push(`Balance to raise: ${formatKes(remaining)}`);
   }
+  lines.push(`Entries: ${sortedByTime.length}`);
+  lines.push(`Last updated: ${formatDateTime(generatedAt)}`);
+  lines.push(`New since last update: ${formatKes(metrics.newSinceLastUpdateAmount)} (${metrics.newSinceLastUpdateCount})`);
 
   return lines.join("\n");
 }

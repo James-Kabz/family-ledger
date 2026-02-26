@@ -18,6 +18,19 @@ type PrismaClientLike = {
   };
 };
 
+function isMissingTableError(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: string }).code === "P2021"
+  );
+}
+
+function missingSchemaMessage() {
+  return "Database tables are missing. Run Prisma migrations for this database (e.g. `npx prisma migrate dev` locally or `prisma migrate deploy` in production).";
+}
+
 declare global {
   // eslint-disable-next-line no-var
   var __familyLedgerPrisma: PrismaClientLike | undefined;
@@ -69,10 +82,15 @@ function mapUpdate(row: any): LedgerUpdate {
 export class PrismaRepository implements LedgerRepository {
   async listContributions(): Promise<Contribution[]> {
     const prisma = await getPrisma();
-    const rows = await prisma.contribution.findMany({
-      orderBy: [{ contributedAt: "desc" }, { createdAt: "desc" }],
-    });
-    return rows.map(mapContribution);
+    try {
+      const rows = await prisma.contribution.findMany({
+        orderBy: [{ contributedAt: "desc" }, { createdAt: "desc" }],
+      });
+      return rows.map(mapContribution);
+    } catch (error) {
+      if (isMissingTableError(error)) return [];
+      throw error;
+    }
   }
 
   async createContribution(input: CreateContributionInput): Promise<Contribution> {
@@ -86,38 +104,67 @@ export class PrismaRepository implements LedgerRepository {
       if (existing) throw new DuplicateRefError(ref);
     }
 
-    const row = await prisma.contribution.create({
-      data: {
-        name: normalizeName(input.name),
-        amount: input.amount,
-        ref,
-        contributedAt: input.contributedAt ? new Date(input.contributedAt) : new Date(),
-        note: input.note?.trim() || null,
-      },
-    });
+    let row: any;
+    try {
+      row = await prisma.contribution.create({
+        data: {
+          name: normalizeName(input.name),
+          amount: input.amount,
+          ref,
+          contributedAt: input.contributedAt ? new Date(input.contributedAt) : new Date(),
+          note: input.note?.trim() || null,
+        },
+      });
+    } catch (error) {
+      if (isMissingTableError(error)) {
+        throw new Error(missingSchemaMessage());
+      }
+      throw error;
+    }
 
     return mapContribution(row);
   }
 
   async deleteContribution(id: string): Promise<void> {
     const prisma = await getPrisma();
-    await prisma.contribution.delete({ where: { id } });
+    try {
+      await prisma.contribution.delete({ where: { id } });
+    } catch (error) {
+      if (isMissingTableError(error)) {
+        throw new Error(missingSchemaMessage());
+      }
+      throw error;
+    }
   }
 
   async getLatestUpdate(): Promise<LedgerUpdate | null> {
     const prisma = await getPrisma();
-    const row = await prisma.ledgerUpdate.findFirst({ orderBy: { cutoffAt: "desc" } });
+    let row: any | null;
+    try {
+      row = await prisma.ledgerUpdate.findFirst({ orderBy: { cutoffAt: "desc" } });
+    } catch (error) {
+      if (isMissingTableError(error)) return null;
+      throw error;
+    }
     return row ? mapUpdate(row) : null;
   }
 
   async createUpdate(input: CreateLedgerUpdateInput): Promise<LedgerUpdate> {
     const prisma = await getPrisma();
-    const row = await prisma.ledgerUpdate.create({
-      data: {
-        cutoffAt: new Date(input.cutoffAt),
-        generatedMessage: input.generatedMessage,
-      },
-    });
+    let row: any;
+    try {
+      row = await prisma.ledgerUpdate.create({
+        data: {
+          cutoffAt: new Date(input.cutoffAt),
+          generatedMessage: input.generatedMessage,
+        },
+      });
+    } catch (error) {
+      if (isMissingTableError(error)) {
+        throw new Error(missingSchemaMessage());
+      }
+      throw error;
+    }
     return mapUpdate(row);
   }
 }
