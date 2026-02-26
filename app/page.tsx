@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { deleteContributionAction } from "@/lib/actions";
 import { requireAuth } from "@/lib/auth/session";
+import { ensureDefaultSeedContributions } from "@/lib/default-seed";
 import { computeDashboardMetrics } from "@/lib/ledger";
 import { getRepository } from "@/lib/repo";
 import type { Contribution } from "@/lib/types";
@@ -145,6 +146,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const dayParam = Array.isArray(params.day) ? params.day[0] : params.day;
 
   const repo = getRepository();
+  await ensureDefaultSeedContributions(repo);
   const [contributions, latestUpdate] = await Promise.all([repo.listContributions(), repo.getLatestUpdate()]);
 
   const metrics = computeDashboardMetrics(contributions, latestUpdate?.cutoffAt ?? null);

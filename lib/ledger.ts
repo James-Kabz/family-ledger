@@ -1,4 +1,5 @@
 import type { Contribution, RunningTotal } from "@/lib/types";
+import { PINNED_CONTRIBUTION_ROWS } from "@/lib/pinned-contributions";
 import { formatDateTime, formatKes, normalizeName } from "@/lib/utils";
 
 export type DashboardMetrics = {
@@ -51,40 +52,48 @@ export function buildWhatsAppUpdateMessage(input: {
   includeAllRunningTotals?: boolean;
 }) {
   const { generatedAt, metrics, contributions } = input;
+  const fixedRows = PINNED_CONTRIBUTION_ROWS;
+  const normalizePinnedKey = (name: string, amount: number) =>
+    `${name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()}|${amount}`;
+  const fixedKeys = new Set(fixedRows.map((row) => normalizePinnedKey(row.name, row.amount)));
   const sortedByTime = [...contributions].sort(
     (a, b) => new Date(a.contributedAt).getTime() - new Date(b.contributedAt).getTime(),
   );
+  const dynamicCandidates = sortedByTime.filter(
+    (row) => !fixedKeys.has(normalizePinnedKey(row.name, row.amount)),
+  );
+  const listMax = Math.max(1, Number(process.env.WHATSAPP_EXPORT_MAX_ITEMS ?? "6") || 6);
+  const dynamicSlots = Math.max(0, listMax - fixedRows.length);
+  const visibleDynamic = dynamicCandidates.slice(0, dynamicSlots);
 
   const formatPlainAmount = (amount: number) => new Intl.NumberFormat("en-KE").format(amount);
-  const budgetLine = process.env.WHATSAPP_BUDGET_LINE?.trim();
+  const budgetLine =
+    process.env.WHATSAPP_BUDGET_LINE?.trim() ??
+    "Our total budget *ksh.1.7M* (inclusive of hospital bill and burial preparations budget)";
   const budgetTarget = Number(process.env.TARGET_BUDGET_KES ?? "");
   const hasBudgetTarget = Number.isFinite(budgetTarget) && budgetTarget > 0;
 
-  const lines = ["*CONTRIBUTION LIST*"];
+  const lines = ["*CONTRIBUTION LIST*", ""];
 
   if (budgetLine) {
     lines.push(budgetLine);
   } else if (hasBudgetTarget) {
-    lines.push(`Our total budget is *ksh.${new Intl.NumberFormat("en-KE").format(budgetTarget)}*`);
+    lines.push(`Our total budget *ksh.${new Intl.NumberFormat("en-KE").format(budgetTarget)}*`);
   }
+  lines.push("");
 
-  if (sortedByTime.length === 0) {
+  const visibleList = [
+    ...fixedRows.map((row) => ({ name: row.name, amount: row.amount })),
+    ...visibleDynamic.map((row) => ({ name: row.name, amount: row.amount })),
+  ].slice(0, listMax);
+
+  if (visibleList.length === 0) {
     lines.push("No contributions recorded yet.");
   } else {
-    for (const [index, item] of sortedByTime.entries()) {
-      lines.push(`${index + 1}.${item.name} - ${formatPlainAmount(item.amount)}✅`);
+    for (const [index, item] of visibleList.entries()) {
+      lines.push(`${index + 1}. ${item.name} - ${formatPlainAmount(item.amount)} ✅`);
     }
   }
-
-  lines.push("");
-  lines.push(`Total collected: ${formatKes(metrics.totalCollected)}`);
-  if (hasBudgetTarget) {
-    const remaining = Math.max(0, budgetTarget - metrics.totalCollected);
-    lines.push(`Balance to raise: ${formatKes(remaining)}`);
-  }
-  lines.push(`Entries: ${sortedByTime.length}`);
-  lines.push(`Last updated: ${formatDateTime(generatedAt)}`);
-  lines.push(`New since last update: ${formatKes(metrics.newSinceLastUpdateAmount)} (${metrics.newSinceLastUpdateCount})`);
 
   return lines.join("\n");
 }
