@@ -10,22 +10,16 @@ function parseKesInt(value: unknown) {
   return Number(value);
 }
 
-export const contributionInputSchema = z.object({
-  name: z.string().trim().min(2, "Name is required").max(120, "Name is too long"),
+export const expenseInputSchema = z.object({
+  title: z.string().trim().min(2, "Expense title is required").max(140, "Expense title is too long"),
   amount: z.preprocess(
     parseKesInt,
     z
-      .number({ invalid_type_error: "Amount is required" })
+      .number({ invalid_type_error: "Expense amount is required" })
       .int("Amount must be a whole number")
       .positive("Amount must be greater than 0"),
   ),
-  ref: z
-    .string()
-    .trim()
-    .max(120, "Reference is too long")
-    .optional()
-    .transform((v) => (v && v.length > 0 ? v : undefined)),
-  contributedAt: z
+  spentAt: z
     .string()
     .optional()
     .transform((v) => (v && v.length > 0 ? v : undefined))
@@ -38,4 +32,4 @@ export const contributionInputSchema = z.object({
     .transform((v) => (v && v.length > 0 ? v : undefined)),
 });
 
-export type ContributionInput = z.infer<typeof contributionInputSchema>;
+export type ExpenseInput = z.infer<typeof expenseInputSchema>;

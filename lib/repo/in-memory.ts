@@ -2,13 +2,22 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 
-import type { Contribution, LedgerUpdate } from "@/lib/types";
+import type { Contribution, Expense, ExpenseUpdate, LedgerUpdate } from "@/lib/types";
 import { normalizeName, normalizeRef } from "@/lib/utils";
-import { DuplicateRefError, type CreateContributionInput, type CreateLedgerUpdateInput, type LedgerRepository } from "@/lib/repo/types";
+import {
+  DuplicateRefError,
+  type CreateContributionInput,
+  type CreateExpenseInput,
+  type CreateExpenseUpdateInput,
+  type CreateLedgerUpdateInput,
+  type LedgerRepository,
+} from "@/lib/repo/types";
 
 type LedgerState = {
   contributions: Contribution[];
+  expenses: Expense[];
   updates: LedgerUpdate[];
+  expenseUpdates: ExpenseUpdate[];
   loaded: boolean;
 };
 
@@ -19,7 +28,7 @@ declare global {
 
 function getState(): LedgerState {
   if (!globalThis.__familyLedgerState) {
-    globalThis.__familyLedgerState = { contributions: [], updates: [], loaded: false };
+    globalThis.__familyLedgerState = { contributions: [], expenses: [], updates: [], expenseUpdates: [], loaded: false };
   }
   return globalThis.__familyLedgerState;
 }
@@ -44,7 +53,9 @@ async function loadIfNeeded(state: LedgerState) {
     const raw = await readFile(filePath, "utf8");
     const parsed = JSON.parse(raw) as Partial<LedgerState>;
     state.contributions = Array.isArray(parsed.contributions) ? parsed.contributions : [];
+    state.expenses = Array.isArray(parsed.expenses) ? parsed.expenses : [];
     state.updates = Array.isArray(parsed.updates) ? parsed.updates : [];
+    state.expenseUpdates = Array.isArray(parsed.expenseUpdates) ? parsed.expenseUpdates : [];
   } catch {
     // Missing/invalid file falls back to empty in-memory state.
   } finally {
@@ -58,7 +69,16 @@ async function persist(state: LedgerState) {
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(
     filePath,
-    JSON.stringify({ contributions: state.contributions, updates: state.updates }, null, 2),
+    JSON.stringify(
+      {
+        contributions: state.contributions,
+        expenses: state.expenses,
+        updates: state.updates,
+        expenseUpdates: state.expenseUpdates,
+      },
+      null,
+      2,
+    ),
     "utf8",
   );
 }
@@ -129,6 +149,60 @@ export class InMemoryRepository implements LedgerRepository {
       createdAt: new Date().toISOString(),
     };
     this.state.updates.push(item);
+    await persist(this.state);
+    return item;
+  }
+
+  async listExpenses(): Promise<Expense[]> {
+    await loadIfNeeded(this.state);
+    return [...this.state.expenses].sort((a, b) => {
+      const spentDiff = new Date(b.spentAt).getTime() - new Date(a.spentAt).getTime();
+      if (spentDiff !== 0) return spentDiff;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+  }
+
+  async createExpense(input: CreateExpenseInput): Promise<Expense> {
+    await loadIfNeeded(this.state);
+    const now = new Date().toISOString();
+
+    const expense: Expense = {
+      id: randomUUID(),
+      title: normalizeName(input.title),
+      amount: input.amount,
+      spentAt: input.spentAt ? new Date(input.spentAt).toISOString() : now,
+      note: input.note?.trim() || null,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    this.state.expenses.push(expense);
+    await persist(this.state);
+    return expense;
+  }
+
+  async deleteExpense(id: string): Promise<void> {
+    await loadIfNeeded(this.state);
+    this.state.expenses = this.state.expenses.filter((item) => item.id !== id);
+    await persist(this.state);
+  }
+
+  async getLatestExpenseUpdate(): Promise<ExpenseUpdate | null> {
+    await loadIfNeeded(this.state);
+    const sorted = [...this.state.expenseUpdates].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+    return sorted[0] ?? null;
+  }
+
+  async createExpenseUpdate(input: CreateExpenseUpdateInput): Promise<ExpenseUpdate> {
+    await loadIfNeeded(this.state);
+    const item: ExpenseUpdate = {
+      id: randomUUID(),
+      generatedMessage: input.generatedMessage,
+      createdAt: new Date().toISOString(),
+    };
+    this.state.expenseUpdates.push(item);
     await persist(this.state);
     return item;
   }

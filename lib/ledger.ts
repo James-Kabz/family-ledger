@@ -1,4 +1,4 @@
-import type { Contribution, RunningTotal } from "@/lib/types";
+import type { Contribution, Expense, RunningTotal } from "@/lib/types";
 import { PINNED_CONTRIBUTION_ROWS } from "@/lib/pinned-contributions";
 import { formatDateTime, formatKes, normalizeName } from "@/lib/utils";
 
@@ -128,4 +128,33 @@ export function findNearDuplicateWarning(
 
   if (!match) return null;
   return `Possible duplicate: same name and amount found within 10 minutes (${formatDateTime(match.contributedAt)}). Saved anyway because no ref was provided.`;
+}
+
+export function buildWhatsAppExpenseMessage(input: {
+  expenses: Expense[];
+  totalCollected: number;
+}) {
+  const { expenses, totalCollected } = input;
+  const sortedByTime = [...expenses].sort(
+    (a, b) => new Date(a.spentAt).getTime() - new Date(b.spentAt).getTime(),
+  );
+  const lines = ["*EXPENSES LIST*", ""];
+
+  if (sortedByTime.length === 0) {
+    lines.push("No expenses recorded yet.");
+  } else {
+    for (const [index, item] of sortedByTime.entries()) {
+      const amount = new Intl.NumberFormat("en-KE").format(item.amount);
+      lines.push(`${index + 1}. ${item.title} - ${amount} ✅`);
+    }
+  }
+
+  const totalExpenses = sortedByTime.reduce((sum, item) => sum + item.amount, 0);
+  const balance = totalCollected - totalExpenses;
+
+  lines.push("");
+  lines.push(`Total expenses: ${formatKes(totalExpenses)}`);
+  lines.push(`Remaining balance: ${formatKes(balance)}`);
+
+  return lines.join("\n");
 }

@@ -27,3 +27,23 @@ model LedgerUpdate {
 
   @@index([cutoffAt(sort: Desc)])
 }
+
+model Expense {
+  id        String   @id @default(cuid())
+  title     String
+  amount    Int
+  spentAt   DateTime
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([spentAt(sort: Desc)])
+}
+
+model ExpenseUpdate {
+  id               String   @id @default(cuid())
+  generatedMessage String
+  createdAt        DateTime @default(now())
+
+  @@index([createdAt(sort: Desc)])
+}

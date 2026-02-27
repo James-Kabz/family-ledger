@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { ContributionForm } from "@/components/contribution-form";
 import { DashboardPanel } from "@/components/dashboard-panel";
+import { ExpensesPanel } from "@/components/expenses-panel";
 import { LogoutButton } from "@/components/logout-button";
 import { MobileActionModal } from "@/components/mobile-action-modal";
 import { StatementImportForm } from "@/components/statement-import-form";
@@ -147,7 +148,11 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
   const repo = getRepository();
   await ensureDefaultSeedContributions(repo);
-  const [contributions, latestUpdate] = await Promise.all([repo.listContributions(), repo.getLatestUpdate()]);
+  const [contributions, latestUpdate, expenses] = await Promise.all([
+    repo.listContributions(),
+    repo.getLatestUpdate(),
+    repo.listExpenses(),
+  ]);
 
   const metrics = computeDashboardMetrics(contributions, latestUpdate?.cutoffAt ?? null);
 
@@ -270,6 +275,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             newCount={metrics.newSinceLastUpdateCount}
             runningTotals={metrics.runningTotals}
           />
+
+          <ExpensesPanel expenses={expenses} />
 
           <Card>
             <CardHeader>

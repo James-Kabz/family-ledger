@@ -7,7 +7,14 @@ import { clearSession, createSession, requireAuth, verifyAdminPassword } from "@
 import { getRepository, DuplicateRefError } from "@/lib/repo";
 import { loginSchema } from "@/lib/validation/auth";
 import { contributionInputSchema } from "@/lib/validation/contribution";
-import { buildWhatsAppUpdateMessage, computeDashboardMetrics, findNearDuplicateWarning } from "@/lib/ledger";
+import { expenseInputSchema } from "@/lib/validation/expense";
+import {
+  buildWhatsAppExpenseMessage,
+  buildWhatsAppUpdateMessage,
+  computeDashboardMetrics,
+  findNearDuplicateWarning,
+} from "@/lib/ledger";
+import { parseMpesaReceivedMessage } from "@/lib/mpesa-sms";
 import { extractTextFromPdfBuffer, parseSafaricomStatementText } from "@/lib/statement-import";
 
 export type LoginActionState = {
@@ -50,11 +57,16 @@ export async function createContributionAction(
     return typeof value === "string" ? value : undefined;
   };
 
+  const smsText = optionalText("smsText");
+  const smsParsed = smsText ? parseMpesaReceivedMessage(smsText) : {};
+  const incomingName = String(formData.get("name") ?? "").trim() || smsParsed.name;
+  const incomingAmount = String(formData.get("amount") ?? "").trim() || (smsParsed.amount ? String(smsParsed.amount) : "");
+
   const parsed = contributionInputSchema.safeParse({
-    name: formData.get("name"),
-    amount: formData.get("amount"),
-    ref: optionalText("ref"),
-    contributedAt: optionalText("contributedAt"),
+    name: incomingName,
+    amount: incomingAmount,
+    ref: optionalText("ref") ?? smsParsed.ref,
+    contributedAt: optionalText("contributedAt") ?? smsParsed.contributedAt,
     note: optionalText("note"),
   });
 
@@ -106,6 +118,60 @@ export async function deleteContributionAction(formData: FormData) {
   revalidatePath("/contributions");
 }
 
+export type ExpenseFormState = {
+  success?: boolean;
+  error?: string;
+};
+
+export async function createExpenseAction(
+  _: ExpenseFormState,
+  formData: FormData,
+): Promise<ExpenseFormState> {
+  await requireAuth();
+
+  const optionalText = (key: string) => {
+    const value = formData.get(key);
+    return typeof value === "string" ? value : undefined;
+  };
+
+  const parsed = expenseInputSchema.safeParse({
+    title: formData.get("title"),
+    amount: formData.get("amount"),
+    spentAt: optionalText("spentAt"),
+    note: optionalText("note"),
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid expense data" };
+  }
+
+  const repo = getRepository();
+  try {
+    await repo.createExpense({
+      title: parsed.data.title,
+      amount: parsed.data.amount,
+      spentAt: parsed.data.spentAt,
+      note: parsed.data.note,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to save expense";
+    return { error: message };
+  }
+
+  revalidatePath("/");
+  return { success: true };
+}
+
+export async function deleteExpenseAction(formData: FormData) {
+  await requireAuth();
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) return;
+
+  const repo = getRepository();
+  await repo.deleteExpense(id);
+  revalidatePath("/");
+}
+
 export type GenerateUpdateState = {
   message: string;
   error?: string;
@@ -118,7 +184,7 @@ export type GenerateUpdateState = {
 };
 
 export async function generateUpdateAction(
-  prev: GenerateUpdateState,
+  _: GenerateUpdateState,
   formData: FormData,
 ): Promise<GenerateUpdateState> {
   await requireAuth();
@@ -152,6 +218,30 @@ export async function generateUpdateAction(
       newCount: metrics.newSinceLastUpdateCount,
     },
   };
+}
+
+export type GenerateExpenseUpdateState = {
+  message: string;
+  error?: string;
+};
+
+export async function generateExpenseUpdateAction(
+  _: GenerateExpenseUpdateState,
+  _formData: FormData,
+): Promise<GenerateExpenseUpdateState> {
+  await requireAuth();
+  const repo = getRepository();
+  const [expenses, contributions] = await Promise.all([
+    repo.listExpenses(),
+    repo.listContributions(),
+  ]);
+
+  const totalCollected = contributions.reduce((sum, item) => sum + item.amount, 0);
+  const message = buildWhatsAppExpenseMessage({ expenses, totalCollected });
+  await repo.createExpenseUpdate({ generatedMessage: message });
+
+  revalidatePath("/");
+  return { message };
 }
 
 export type StatementImportState = {

@@ -2,8 +2,15 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 
 import { normalizeName, normalizeRef } from "@/lib/utils";
-import type { Contribution, LedgerUpdate } from "@/lib/types";
-import { DuplicateRefError, type CreateContributionInput, type CreateLedgerUpdateInput, type LedgerRepository } from "@/lib/repo/types";
+import type { Contribution, Expense, ExpenseUpdate, LedgerUpdate } from "@/lib/types";
+import {
+  DuplicateRefError,
+  type CreateContributionInput,
+  type CreateExpenseInput,
+  type CreateExpenseUpdateInput,
+  type CreateLedgerUpdateInput,
+  type LedgerRepository,
+} from "@/lib/repo/types";
 
 type PrismaClientLike = {
   contribution: {
@@ -12,11 +19,28 @@ type PrismaClientLike = {
     create(args: unknown): Promise<any>;
     delete(args: unknown): Promise<any>;
   };
+  expense: {
+    findMany(args?: unknown): Promise<any[]>;
+    create(args: unknown): Promise<any>;
+    delete(args: unknown): Promise<any>;
+  };
   ledgerUpdate: {
     findFirst(args?: unknown): Promise<any | null>;
     create(args: unknown): Promise<any>;
   };
+  expenseUpdate: {
+    findFirst(args?: unknown): Promise<any | null>;
+    create(args: unknown): Promise<any>;
+  };
 };
+
+function hasExpenseModels(prisma: PrismaClientLike) {
+  return Boolean(prisma.expense && prisma.expenseUpdate);
+}
+
+function prismaClientOutOfDateMessage() {
+  return "Prisma client is out of date for expenses. Run `npx prisma generate` and restart the app.";
+}
 
 function isMissingTableError(error: unknown) {
   return (
@@ -37,7 +61,9 @@ declare global {
 }
 
 async function getPrisma(): Promise<PrismaClientLike> {
-  if (globalThis.__familyLedgerPrisma) return globalThis.__familyLedgerPrisma;
+  if (globalThis.__familyLedgerPrisma && hasExpenseModels(globalThis.__familyLedgerPrisma)) {
+    return globalThis.__familyLedgerPrisma;
+  }
 
   try {
     const connectionString = process.env.DATABASE_URL;
@@ -46,7 +72,7 @@ async function getPrisma(): Promise<PrismaClientLike> {
     }
 
     const adapter = new PrismaPg({ connectionString });
-    const client = new PrismaClient({ adapter }) as PrismaClientLike;
+    const client = new PrismaClient({ adapter }) as unknown as PrismaClientLike;
     globalThis.__familyLedgerPrisma = client;
     return client;
   } catch (error) {
@@ -74,6 +100,26 @@ function mapUpdate(row: any): LedgerUpdate {
   return {
     id: row.id,
     cutoffAt: new Date(row.cutoffAt).toISOString(),
+    generatedMessage: row.generatedMessage,
+    createdAt: new Date(row.createdAt).toISOString(),
+  };
+}
+
+function mapExpense(row: any): Expense {
+  return {
+    id: row.id,
+    title: row.title,
+    amount: row.amount,
+    spentAt: new Date(row.spentAt).toISOString(),
+    note: row.note ?? null,
+    createdAt: new Date(row.createdAt).toISOString(),
+    updatedAt: new Date(row.updatedAt).toISOString(),
+  };
+}
+
+function mapExpenseUpdate(row: any): ExpenseUpdate {
+  return {
+    id: row.id,
     generatedMessage: row.generatedMessage,
     createdAt: new Date(row.createdAt).toISOString(),
   };
@@ -166,5 +212,93 @@ export class PrismaRepository implements LedgerRepository {
       throw error;
     }
     return mapUpdate(row);
+  }
+
+  async listExpenses(): Promise<Expense[]> {
+    const prisma = await getPrisma();
+    if (!hasExpenseModels(prisma)) return [];
+    try {
+      const rows = await prisma.expense.findMany({
+        orderBy: [{ spentAt: "desc" }, { createdAt: "desc" }],
+      });
+      return rows.map(mapExpense);
+    } catch (error) {
+      if (isMissingTableError(error)) return [];
+      throw error;
+    }
+  }
+
+  async createExpense(input: CreateExpenseInput): Promise<Expense> {
+    const prisma = await getPrisma();
+    if (!hasExpenseModels(prisma)) {
+      throw new Error(prismaClientOutOfDateMessage());
+    }
+    let row: any;
+    try {
+      row = await prisma.expense.create({
+        data: {
+          title: normalizeName(input.title),
+          amount: input.amount,
+          spentAt: input.spentAt ? new Date(input.spentAt) : new Date(),
+          note: input.note?.trim() || null,
+        },
+      });
+    } catch (error) {
+      if (isMissingTableError(error)) {
+        throw new Error(missingSchemaMessage());
+      }
+      throw error;
+    }
+
+    return mapExpense(row);
+  }
+
+  async deleteExpense(id: string): Promise<void> {
+    const prisma = await getPrisma();
+    if (!hasExpenseModels(prisma)) {
+      throw new Error(prismaClientOutOfDateMessage());
+    }
+    try {
+      await prisma.expense.delete({ where: { id } });
+    } catch (error) {
+      if (isMissingTableError(error)) {
+        throw new Error(missingSchemaMessage());
+      }
+      throw error;
+    }
+  }
+
+  async getLatestExpenseUpdate(): Promise<ExpenseUpdate | null> {
+    const prisma = await getPrisma();
+    if (!hasExpenseModels(prisma)) return null;
+    let row: any | null;
+    try {
+      row = await prisma.expenseUpdate.findFirst({ orderBy: { createdAt: "desc" } });
+    } catch (error) {
+      if (isMissingTableError(error)) return null;
+      throw error;
+    }
+    return row ? mapExpenseUpdate(row) : null;
+  }
+
+  async createExpenseUpdate(input: CreateExpenseUpdateInput): Promise<ExpenseUpdate> {
+    const prisma = await getPrisma();
+    if (!hasExpenseModels(prisma)) {
+      throw new Error(prismaClientOutOfDateMessage());
+    }
+    let row: any;
+    try {
+      row = await prisma.expenseUpdate.create({
+        data: {
+          generatedMessage: input.generatedMessage,
+        },
+      });
+    } catch (error) {
+      if (isMissingTableError(error)) {
+        throw new Error(missingSchemaMessage());
+      }
+      throw error;
+    }
+    return mapExpenseUpdate(row);
   }
 }

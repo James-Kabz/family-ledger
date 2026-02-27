@@ -7,9 +7,11 @@ A Next.js App Router (TypeScript) app for manually tracking funeral contribution
 - Admin login with password from `ADMIN_PASSWORD`
 - httpOnly cookie session
 - Manual contribution entry (name, amount, ref, timestamp, note)
+- M-Pesa SMS paste helper (extracts sender name + amount from “You have received...” messages)
 - Duplicate prevention by M-Pesa reference
 - Duplicate warning for same name + amount within 10 minutes when no ref is provided
 - Dashboard totals + WhatsApp update generator
+- Expenses tracking with separate copy-ready WhatsApp expenses message
 - WhatsApp export in numbered checklist style (time-ordered entries)
 - Update cutoff tracking (`new since last update`)
 - Safaricom statement PDF import (filters entries with `Funds received from`)
@@ -58,6 +60,7 @@ npm run dev
 
 - `/login` - admin login
 - `/` - dashboard totals + WhatsApp message generator
+- `/` - includes contributions, statement import, expenses, and both copy message areas
 - `/contributions` - add/list/delete contributions
 
 ## Data Storage (Default)

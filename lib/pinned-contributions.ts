@@ -5,6 +5,7 @@ export type PinnedContributionSeed = {
 
 export const PINNED_CONTRIBUTION_ROWS: readonly PinnedContributionSeed[] = [
   { name: "Kabogo's Family", amount: 300000 },
+  { name: "JR's Family", amount: 20000 },
   { name: "Hillary Kabogo Milestone Fraternity", amount: 100000 },
   { name: "Robert Kabogo Milestone Fraternity", amount: 100000 },
   { name: "Paul Kabogo Milestone Fraternity", amount: 100000 },
