@@ -4,6 +4,7 @@ export type CreateContributionInput = {
   name: string;
   amount: number;
   ref?: string | null;
+  pledged?: boolean;
   contributedAt?: string;
   note?: string | null;
 };
@@ -27,6 +28,7 @@ export type CreateExpenseUpdateInput = {
 export interface LedgerRepository {
   listContributions(): Promise<Contribution[]>;
   createContribution(input: CreateContributionInput): Promise<Contribution>;
+  updateContributionPledged(id: string, pledged: boolean): Promise<void>;
   deleteContribution(id: string): Promise<void>;
   getLatestUpdate(): Promise<LedgerUpdate | null>;
   createUpdate(input: CreateLedgerUpdateInput): Promise<LedgerUpdate>;

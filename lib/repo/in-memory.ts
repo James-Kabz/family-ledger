@@ -52,7 +52,9 @@ async function loadIfNeeded(state: LedgerState) {
   try {
     const raw = await readFile(filePath, "utf8");
     const parsed = JSON.parse(raw) as Partial<LedgerState>;
-    state.contributions = Array.isArray(parsed.contributions) ? parsed.contributions : [];
+    state.contributions = Array.isArray(parsed.contributions)
+      ? parsed.contributions.map((item) => ({ ...item, pledged: Boolean(item?.pledged) }))
+      : [];
     state.expenses = Array.isArray(parsed.expenses) ? parsed.expenses : [];
     state.updates = Array.isArray(parsed.updates) ? parsed.updates : [];
     state.expenseUpdates = Array.isArray(parsed.expenseUpdates) ? parsed.expenseUpdates : [];
@@ -115,6 +117,7 @@ export class InMemoryRepository implements LedgerRepository {
       name: normalizeName(input.name),
       amount: input.amount,
       ref: normalizedRef,
+      pledged: Boolean(input.pledged),
       contributedAt: input.contributedAt ? new Date(input.contributedAt).toISOString() : now,
       note: input.note?.trim() || null,
       createdAt: now,
@@ -124,6 +127,15 @@ export class InMemoryRepository implements LedgerRepository {
     this.state.contributions.push(contribution);
     await persist(this.state);
     return contribution;
+  }
+
+  async updateContributionPledged(id: string, pledged: boolean): Promise<void> {
+    await loadIfNeeded(this.state);
+    const now = new Date().toISOString();
+    this.state.contributions = this.state.contributions.map((item) =>
+      item.id === id ? { ...item, pledged, updatedAt: now } : item,
+    );
+    await persist(this.state);
   }
 
   async deleteContribution(id: string): Promise<void> {

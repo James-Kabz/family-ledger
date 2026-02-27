@@ -12,26 +12,43 @@ export type DashboardMetrics = {
 };
 
 export function computeRunningTotals(contributions: Contribution[]): RunningTotal[] {
-  const totalsByKey = new Map<string, { name: string; total: number }>();
+  const totalsByKey = new Map<string, { key: string; name: string; total: number; lastContributedAtMs: number }>();
 
   for (const item of contributions) {
+    const contributedAtMs = new Date(item.contributedAt).getTime();
     const key = normalizeName(item.name).toLowerCase();
     const displayName = normalizeName(item.name);
     const existing = totalsByKey.get(key);
     if (existing) {
       existing.total += item.amount;
+      if (contributedAtMs > existing.lastContributedAtMs) {
+        existing.lastContributedAtMs = contributedAtMs;
+      }
     } else {
-      totalsByKey.set(key, { name: displayName, total: item.amount });
+      totalsByKey.set(key, {
+        key,
+        name: displayName,
+        total: item.amount,
+        lastContributedAtMs: contributedAtMs,
+      });
     }
   }
 
-  return [...totalsByKey.values()].sort((a, b) => (b.total - a.total) || a.name.localeCompare(b.name));
+  return [...totalsByKey.values()]
+    .sort((a, b) => (b.lastContributedAtMs - a.lastContributedAtMs) || a.name.localeCompare(b.name))
+    .map((row) => ({
+      key: row.key,
+      name: row.name,
+      total: row.total,
+      lastContributedAt: new Date(row.lastContributedAtMs).toISOString(),
+    }));
 }
 
 export function computeDashboardMetrics(contributions: Contribution[], lastCutoffAt: string | null): DashboardMetrics {
-  const totalCollected = contributions.reduce((sum, item) => sum + item.amount, 0);
+  const receivedContributions = contributions.filter((item) => !item.pledged);
+  const totalCollected = receivedContributions.reduce((sum, item) => sum + item.amount, 0);
   const lastUpdateMs = lastCutoffAt ? new Date(lastCutoffAt).getTime() : null;
-  const newContributions = contributions
+  const newContributions = receivedContributions
     .filter((item) => (lastUpdateMs === null ? true : new Date(item.contributedAt).getTime() > lastUpdateMs))
     .sort((a, b) => new Date(a.contributedAt).getTime() - new Date(b.contributedAt).getTime());
 
@@ -41,7 +58,7 @@ export function computeDashboardMetrics(contributions: Contribution[], lastCutof
     newSinceLastUpdateAmount: newContributions.reduce((sum, item) => sum + item.amount, 0),
     newSinceLastUpdateCount: newContributions.length,
     newContributions,
-    runningTotals: computeRunningTotals(contributions),
+    runningTotals: computeRunningTotals(receivedContributions),
   };
 }
 

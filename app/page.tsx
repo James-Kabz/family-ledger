@@ -11,7 +11,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { deleteContributionAction } from "@/lib/actions";
+import { deleteContributionAction, toggleContributionPledgedAction } from "@/lib/actions";
 import { requireAuth } from "@/lib/auth/session";
 import { ensureDefaultSeedContributions } from "@/lib/default-seed";
 import { computeDashboardMetrics } from "@/lib/ledger";
@@ -169,7 +169,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       ? contributions
       : contributions.filter((item) => getDayKeyForContribution(item) === selectedDayKey);
 
-  const visibleTotal = visibleContributions.reduce((sum, item) => sum + item.amount, 0);
+  const visibleTotal = visibleContributions.filter((item) => !item.pledged).reduce((sum, item) => sum + item.amount, 0);
 
   return (
     <div className="space-y-5 sm:space-y-6">
@@ -297,7 +297,14 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                       <div key={item.id} className="rounded-xl border bg-background p-3">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold">{item.name}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="truncate text-sm font-semibold">{item.name}</p>
+                              {item.pledged ? (
+                                <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+                                  Pledged
+                                </span>
+                              ) : null}
+                            </div>
                             <p className="text-xs text-muted-foreground">{formatDateTime(item.contributedAt)}</p>
                           </div>
                           <p className="shrink-0 text-sm font-semibold text-foreground">{formatKes(item.amount)}</p>
@@ -312,12 +319,21 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                           <span>{formatTimeOnly(item.contributedAt)}</span>
                         </div>
 
-                        <form action={deleteContributionAction} className="mt-3">
-                          <input type="hidden" name="id" value={item.id} />
-                          <SubmitButton variant="destructive" size="sm" pendingLabel="Deleting..." className="w-full">
-                            Delete entry
-                          </SubmitButton>
-                        </form>
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                          <form action={toggleContributionPledgedAction}>
+                            <input type="hidden" name="id" value={item.id} />
+                            <input type="hidden" name="pledged" value={item.pledged ? "false" : "true"} />
+                            <SubmitButton variant="outline" size="sm" pendingLabel="Updating..." className="w-full">
+                              {item.pledged ? "Mark received" : "Mark pledged"}
+                            </SubmitButton>
+                          </form>
+                          <form action={deleteContributionAction}>
+                            <input type="hidden" name="id" value={item.id} />
+                            <SubmitButton variant="destructive" size="sm" pendingLabel="Deleting..." className="w-full">
+                              Delete entry
+                            </SubmitButton>
+                          </form>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -330,8 +346,9 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                           <TableHead>Amount</TableHead>
                           <TableHead>Time</TableHead>
                           <TableHead>Full timestamp</TableHead>
+                          <TableHead>Status</TableHead>
                           <TableHead>Note</TableHead>
-                          <TableHead className="w-[120px]">Action</TableHead>
+                          <TableHead className="w-[240px]">Action</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -341,16 +358,36 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                             <TableCell>{formatKes(item.amount)}</TableCell>
                             <TableCell>{formatTimeOnly(item.contributedAt)}</TableCell>
                             <TableCell className="whitespace-nowrap">{formatDateTime(item.contributedAt)}</TableCell>
+                            <TableCell>
+                              {item.pledged ? (
+                                <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+                                  Pledged
+                                </span>
+                              ) : (
+                                <span className="rounded-full border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
+                                  Received
+                                </span>
+                              )}
+                            </TableCell>
                             <TableCell className="max-w-[260px] truncate">
                               {item.note ?? <span className="text-muted-foreground">-</span>}
                             </TableCell>
                             <TableCell>
-                              <form action={deleteContributionAction}>
-                                <input type="hidden" name="id" value={item.id} />
-                                <SubmitButton variant="destructive" size="sm" pendingLabel="Deleting...">
-                                  Delete
-                                </SubmitButton>
-                              </form>
+                              <div className="flex items-center gap-2">
+                                <form action={toggleContributionPledgedAction}>
+                                  <input type="hidden" name="id" value={item.id} />
+                                  <input type="hidden" name="pledged" value={item.pledged ? "false" : "true"} />
+                                  <SubmitButton variant="outline" size="sm" pendingLabel="Updating...">
+                                    {item.pledged ? "Mark received" : "Mark pledged"}
+                                  </SubmitButton>
+                                </form>
+                                <form action={deleteContributionAction}>
+                                  <input type="hidden" name="id" value={item.id} />
+                                  <SubmitButton variant="destructive" size="sm" pendingLabel="Deleting...">
+                                    Delete
+                                  </SubmitButton>
+                                </form>
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))}

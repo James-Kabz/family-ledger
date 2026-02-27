@@ -1,10 +1,11 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 
 import { generateUpdateAction, type GenerateUpdateState } from "@/lib/actions";
 import type { RunningTotal } from "@/lib/types";
 import { formatDateTime, formatKes } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/copy-button";
 import { SubmitButton } from "@/components/submit-button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,12 +22,23 @@ type Props = {
 };
 
 const initialGenerateUpdateState: GenerateUpdateState = { message: "" };
+const RUNNING_TOTALS_PAGE_SIZE = 10;
 
 export function DashboardPanel({ totalCollected, lastUpdatedAt, newAmount, newCount, runningTotals }: Props) {
   const [state, action] = useActionState(generateUpdateAction, initialGenerateUpdateState);
-  const [showAll, setShowAll] = useState(false);
+  const [includeAllRunningTotals, setIncludeAllRunningTotals] = useState(false);
+  const [page, setPage] = useState(1);
 
-  const visibleTotals = showAll ? runningTotals : runningTotals.slice(0, 15);
+  const totalPages = Math.max(1, Math.ceil(runningTotals.length / RUNNING_TOTALS_PAGE_SIZE));
+  const startIndex = (page - 1) * RUNNING_TOTALS_PAGE_SIZE;
+  const visibleTotals = runningTotals.slice(startIndex, startIndex + RUNNING_TOTALS_PAGE_SIZE);
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
+
   const effectiveTotalCollected = state.meta?.totalCollected ?? totalCollected;
   const effectiveNewAmount = state.meta?.newAmount ?? newAmount;
   const effectiveNewCount = state.meta?.newCount ?? newCount;
@@ -70,8 +82,8 @@ export function DashboardPanel({ totalCollected, lastUpdatedAt, newAmount, newCo
                 <Switch
                   id="include-all-running-totals"
                   name="includeAllRunningTotals"
-                  checked={showAll}
-                  onCheckedChange={setShowAll}
+                  checked={includeAllRunningTotals}
+                  onCheckedChange={setIncludeAllRunningTotals}
                 />
                 <div>
                   <Label htmlFor="include-all-running-totals">Include all running totals</Label>
@@ -107,7 +119,7 @@ export function DashboardPanel({ totalCollected, lastUpdatedAt, newAmount, newCo
       <Card>
         <CardHeader>
           <CardTitle>Running totals</CardTitle>
-          <CardDescription>{showAll ? "Showing all contributors" : "Showing top 15 contributors"}</CardDescription>
+          <CardDescription>Sorted by most recent contribution time.</CardDescription>
         </CardHeader>
         <CardContent>
           {visibleTotals.length === 0 ? (
@@ -115,13 +127,44 @@ export function DashboardPanel({ totalCollected, lastUpdatedAt, newAmount, newCo
           ) : (
             <ul className="space-y-2">
               {visibleTotals.map((row) => (
-                <li key={row.name} className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm">
-                  <span className="font-medium">{row.name}</span>
+                <li key={row.key} className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{row.name}</p>
+                    <p className="text-xs text-muted-foreground">{formatDateTime(row.lastContributedAt)}</p>
+                  </div>
                   <span className="text-muted-foreground">{formatKes(row.total)}</span>
                 </li>
               ))}
             </ul>
           )}
+
+          {runningTotals.length > RUNNING_TOTALS_PAGE_SIZE ? (
+            <div className="mt-4 flex items-center justify-between gap-3 border-t pt-4">
+              <p className="text-xs text-muted-foreground">
+                Page {page} of {totalPages}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((current) => Math.max(1, current - 1))}
+                  disabled={page === 1}
+                >
+                  Previous
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+                  disabled={page === totalPages}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
     </div>

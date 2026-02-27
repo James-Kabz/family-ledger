@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { SubmitButton } from "@/components/submit-button";
 
@@ -28,6 +29,7 @@ export function ContributionForm() {
   const [parsedRef, setParsedRef] = useState("");
   const [parsedAt, setParsedAt] = useState("");
   const [note, setNote] = useState("");
+  const [pledged, setPledged] = useState(false);
   const [parseHint, setParseHint] = useState("");
 
   useEffect(() => {
@@ -39,6 +41,7 @@ export function ContributionForm() {
       setParsedRef("");
       setParsedAt("");
       setNote("");
+      setPledged(false);
       setParseHint("");
     }
   }, [state.success]);
@@ -130,6 +133,18 @@ export function ContributionForm() {
               value={note}
               onChange={(event) => setNote(event.target.value)}
             />
+          </div>
+
+          <div className="md:col-span-2">
+            <div className="flex items-start gap-3 rounded-lg border p-3">
+              <Switch id="pledged" name="pledged" checked={pledged} onCheckedChange={setPledged} />
+              <div>
+                <Label htmlFor="pledged">Mark as pledge</Label>
+                <p className="text-xs text-muted-foreground">
+                  Pledges are saved for tracking but excluded from totals and WhatsApp updates.
+                </p>
+              </div>
+            </div>
           </div>
 
           <input type="hidden" name="ref" value={parsedRef} />

@@ -3,6 +3,7 @@ export type Contribution = {
   name: string;
   amount: number;
   ref: string | null;
+  pledged: boolean;
   contributedAt: string;
   note: string | null;
   createdAt: string;
@@ -33,6 +34,8 @@ export type ExpenseUpdate = {
 };
 
 export type RunningTotal = {
+  key: string;
   name: string;
   total: number;
+  lastContributedAt: string;
 };

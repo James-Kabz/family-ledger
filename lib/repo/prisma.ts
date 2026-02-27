@@ -17,6 +17,7 @@ type PrismaClientLike = {
     findMany(args?: unknown): Promise<any[]>;
     findFirst(args?: unknown): Promise<any | null>;
     create(args: unknown): Promise<any>;
+    update(args: unknown): Promise<any>;
     delete(args: unknown): Promise<any>;
   };
   expense: {
@@ -51,8 +52,21 @@ function isMissingTableError(error: unknown) {
   );
 }
 
+function isMissingColumnError(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: string }).code === "P2022"
+  );
+}
+
 function missingSchemaMessage() {
   return "Database tables are missing. Run Prisma migrations for this database (e.g. `npx prisma migrate dev` locally or `prisma migrate deploy` in production).";
+}
+
+function missingPledgedColumnMessage() {
+  return "Pledge status requires a DB migration. Run `npx prisma migrate deploy` (or `npx prisma migrate dev`) and restart the app.";
 }
 
 declare global {
@@ -89,6 +103,7 @@ function mapContribution(row: any): Contribution {
     name: row.name,
     amount: row.amount,
     ref: row.ref ?? null,
+    pledged: Boolean(row.pledged),
     contributedAt: new Date(row.contributedAt).toISOString(),
     note: row.note ?? null,
     createdAt: new Date(row.createdAt).toISOString(),
@@ -130,9 +145,40 @@ export class PrismaRepository implements LedgerRepository {
     const prisma = await getPrisma();
     try {
       const rows = await prisma.contribution.findMany({
+        select: {
+          id: true,
+          name: true,
+          amount: true,
+          ref: true,
+          pledged: true,
+          contributedAt: true,
+          note: true,
+          createdAt: true,
+          updatedAt: true,
+        },
         orderBy: [{ contributedAt: "desc" }, { createdAt: "desc" }],
       });
       return rows.map(mapContribution);
+    } catch (error) {
+      if (isMissingTableError(error)) return [];
+      if (!isMissingColumnError(error)) throw error;
+    }
+
+    try {
+      const rows = await prisma.contribution.findMany({
+        select: {
+          id: true,
+          name: true,
+          amount: true,
+          ref: true,
+          contributedAt: true,
+          note: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+        orderBy: [{ contributedAt: "desc" }, { createdAt: "desc" }],
+      });
+      return rows.map((row) => mapContribution({ ...row, pledged: false }));
     } catch (error) {
       if (isMissingTableError(error)) return [];
       throw error;
@@ -145,6 +191,7 @@ export class PrismaRepository implements LedgerRepository {
 
     if (ref) {
       const existing = await prisma.contribution.findFirst({
+        select: { id: true },
         where: { ref: { equals: ref, mode: "insensitive" } },
       });
       if (existing) throw new DuplicateRefError(ref);
@@ -157,18 +204,45 @@ export class PrismaRepository implements LedgerRepository {
           name: normalizeName(input.name),
           amount: input.amount,
           ref,
+          pledged: Boolean(input.pledged),
           contributedAt: input.contributedAt ? new Date(input.contributedAt) : new Date(),
           note: input.note?.trim() || null,
         },
       });
     } catch (error) {
-      if (isMissingTableError(error)) {
+      if (isMissingColumnError(error)) {
+        row = await prisma.contribution.create({
+          data: {
+            name: normalizeName(input.name),
+            amount: input.amount,
+            ref,
+            contributedAt: input.contributedAt ? new Date(input.contributedAt) : new Date(),
+            note: input.note?.trim() || null,
+          },
+        });
+      } else if (isMissingTableError(error)) {
         throw new Error(missingSchemaMessage());
+      } else {
+        throw error;
       }
-      throw error;
     }
 
     return mapContribution(row);
+  }
+
+  async updateContributionPledged(id: string, pledged: boolean): Promise<void> {
+    const prisma = await getPrisma();
+    try {
+      await prisma.contribution.update({ where: { id }, data: { pledged } });
+    } catch (error) {
+      if (isMissingTableError(error)) {
+        throw new Error(missingSchemaMessage());
+      }
+      if (isMissingColumnError(error)) {
+        throw new Error(missingPledgedColumnMessage());
+      }
+      throw error;
+    }
   }
 
   async deleteContribution(id: string): Promise<void> {

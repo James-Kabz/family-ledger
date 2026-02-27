@@ -25,6 +25,7 @@ export const contributionInputSchema = z.object({
     .max(120, "Reference is too long")
     .optional()
     .transform((v) => (v && v.length > 0 ? v : undefined)),
+  pledged: z.preprocess((value) => value === true || value === "true" || value === "on", z.boolean()).default(false),
   contributedAt: z
     .string()
     .optional()

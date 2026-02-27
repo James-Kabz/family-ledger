@@ -1,0 +1,2 @@
+ALTER TABLE "Contribution"
+ADD COLUMN "pledged" BOOLEAN NOT NULL DEFAULT false;

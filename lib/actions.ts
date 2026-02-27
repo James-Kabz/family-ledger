@@ -66,6 +66,7 @@ export async function createContributionAction(
     name: incomingName,
     amount: incomingAmount,
     ref: optionalText("ref") ?? smsParsed.ref,
+    pledged: optionalText("pledged"),
     contributedAt: optionalText("contributedAt") ?? smsParsed.contributedAt,
     note: optionalText("note"),
   });
@@ -90,6 +91,7 @@ export async function createContributionAction(
       name: parsed.data.name,
       amount: parsed.data.amount,
       ref: parsed.data.ref,
+      pledged: parsed.data.pledged,
       contributedAt: parsed.data.contributedAt,
       note: parsed.data.note,
     });
@@ -104,6 +106,19 @@ export async function createContributionAction(
   revalidatePath("/contributions");
 
   return { success: true, warning: warning ?? undefined };
+}
+
+export async function toggleContributionPledgedAction(formData: FormData) {
+  await requireAuth();
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) return;
+
+  const pledged = String(formData.get("pledged") ?? "") === "true";
+  const repo = getRepository();
+  await repo.updateContributionPledged(id, pledged);
+
+  revalidatePath("/");
+  revalidatePath("/contributions");
 }
 
 export async function deleteContributionAction(formData: FormData) {
@@ -236,7 +251,7 @@ export async function generateExpenseUpdateAction(
     repo.listContributions(),
   ]);
 
-  const totalCollected = contributions.reduce((sum, item) => sum + item.amount, 0);
+  const totalCollected = contributions.filter((item) => !item.pledged).reduce((sum, item) => sum + item.amount, 0);
   const message = buildWhatsAppExpenseMessage({ expenses, totalCollected });
   await repo.createExpenseUpdate({ generatedMessage: message });
 
