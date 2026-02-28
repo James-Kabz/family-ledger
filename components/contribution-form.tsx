@@ -141,7 +141,7 @@ export function ContributionForm() {
               <div>
                 <Label htmlFor="pledged">Mark as pledge</Label>
                 <p className="text-xs text-muted-foreground">
-                  Pledges are saved for tracking but excluded from totals and WhatsApp updates.
+                  Pledges are tracked separately in records but still included in totals and WhatsApp updates.
                 </p>
               </div>
             </div>

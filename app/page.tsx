@@ -169,7 +169,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       ? contributions
       : contributions.filter((item) => getDayKeyForContribution(item) === selectedDayKey);
 
-  const visibleTotal = visibleContributions.filter((item) => !item.pledged).reduce((sum, item) => sum + item.amount, 0);
+  const visibleTotal = visibleContributions.reduce((sum, item) => sum + item.amount, 0);
 
   return (
     <div className="space-y-5 sm:space-y-6">

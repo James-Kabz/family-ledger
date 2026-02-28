@@ -1,4 +1,5 @@
 import type { Contribution, Expense, RunningTotal } from "@/lib/types";
+import { isTransferRecordTitle } from "@/lib/expense-records";
 import { PINNED_CONTRIBUTION_ROWS } from "@/lib/pinned-contributions";
 import { formatDateTime, formatKes, normalizeName } from "@/lib/utils";
 
@@ -45,10 +46,9 @@ export function computeRunningTotals(contributions: Contribution[]): RunningTota
 }
 
 export function computeDashboardMetrics(contributions: Contribution[], lastCutoffAt: string | null): DashboardMetrics {
-  const receivedContributions = contributions.filter((item) => !item.pledged);
-  const totalCollected = receivedContributions.reduce((sum, item) => sum + item.amount, 0);
+  const totalCollected = contributions.reduce((sum, item) => sum + item.amount, 0);
   const lastUpdateMs = lastCutoffAt ? new Date(lastCutoffAt).getTime() : null;
-  const newContributions = receivedContributions
+  const newContributions = contributions
     .filter((item) => (lastUpdateMs === null ? true : new Date(item.contributedAt).getTime() > lastUpdateMs))
     .sort((a, b) => new Date(a.contributedAt).getTime() - new Date(b.contributedAt).getTime());
 
@@ -58,7 +58,7 @@ export function computeDashboardMetrics(contributions: Contribution[], lastCutof
     newSinceLastUpdateAmount: newContributions.reduce((sum, item) => sum + item.amount, 0),
     newSinceLastUpdateCount: newContributions.length,
     newContributions,
-    runningTotals: computeRunningTotals(receivedContributions),
+    runningTotals: computeRunningTotals(contributions),
   };
 }
 
@@ -152,9 +152,11 @@ export function buildWhatsAppExpenseMessage(input: {
   totalCollected: number;
 }) {
   const { expenses, totalCollected } = input;
-  const sortedByTime = [...expenses].sort(
-    (a, b) => new Date(a.spentAt).getTime() - new Date(b.spentAt).getTime(),
-  );
+  const sortedByTime = [...expenses]
+    .filter((item) => !isTransferRecordTitle(item.title))
+    .sort(
+      (a, b) => new Date(a.spentAt).getTime() - new Date(b.spentAt).getTime(),
+    );
   const lines = ["*EXPENSES LIST*", ""];
 
   if (sortedByTime.length === 0) {

@@ -14,6 +14,7 @@ import {
   computeDashboardMetrics,
   findNearDuplicateWarning,
 } from "@/lib/ledger";
+import { toTransferRecordTitle } from "@/lib/expense-records";
 import { parseMpesaReceivedMessage } from "@/lib/mpesa-sms";
 import { extractTextFromPdfBuffer, parseSafaricomStatementText } from "@/lib/statement-import";
 
@@ -149,6 +150,7 @@ export async function createExpenseAction(
     return typeof value === "string" ? value : undefined;
   };
 
+  const isTransfer = String(formData.get("isTransfer") ?? "") === "on";
   const parsed = expenseInputSchema.safeParse({
     title: formData.get("title"),
     amount: formData.get("amount"),
@@ -163,7 +165,7 @@ export async function createExpenseAction(
   const repo = getRepository();
   try {
     await repo.createExpense({
-      title: parsed.data.title,
+      title: isTransfer ? toTransferRecordTitle(parsed.data.title) : parsed.data.title,
       amount: parsed.data.amount,
       spentAt: parsed.data.spentAt,
       note: parsed.data.note,
@@ -251,7 +253,7 @@ export async function generateExpenseUpdateAction(
     repo.listContributions(),
   ]);
 
-  const totalCollected = contributions.filter((item) => !item.pledged).reduce((sum, item) => sum + item.amount, 0);
+  const totalCollected = contributions.reduce((sum, item) => sum + item.amount, 0);
   const message = buildWhatsAppExpenseMessage({ expenses, totalCollected });
   await repo.createExpenseUpdate({ generatedMessage: message });
 
