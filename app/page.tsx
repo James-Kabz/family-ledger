@@ -18,7 +18,7 @@ import { ensureDefaultSeedContributions } from "@/lib/default-seed";
 import { computeDashboardMetrics } from "@/lib/ledger";
 import { getRepository } from "@/lib/repo";
 import type { Contribution } from "@/lib/types";
-import { cn, formatDateTime, formatKes } from "@/lib/utils";
+import { cn, formatDateTime, formatKes, formatTimeInKenya } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -64,12 +64,6 @@ function formatDayLabel(dayKey: string) {
     month: "short",
     day: "numeric",
   }).format(date);
-}
-
-function formatTimeOnly(value: string) {
-  const date = new Date(value);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 function isValidDayKey(value: string | undefined): value is string {
@@ -136,6 +130,7 @@ function LedgerPagination({ currentPage, totalPages, totalItems, pageSize, getHr
       <div className="flex flex-wrap items-center gap-2">
         <Link
           href={getHref(currentPage - 1)}
+          scroll={false}
           className={cn(
             buttonVariants({ variant: "outline", size: "sm" }),
             currentPage === 1 ? "pointer-events-none opacity-50" : "",
@@ -154,6 +149,7 @@ function LedgerPagination({ currentPage, totalPages, totalItems, pageSize, getHr
             <Link
               key={`page-${item}`}
               href={getHref(item)}
+              scroll={false}
               className={cn(buttonVariants({ variant: item === currentPage ? "default" : "outline", size: "sm" }))}
             >
               {item}
@@ -162,6 +158,7 @@ function LedgerPagination({ currentPage, totalPages, totalItems, pageSize, getHr
         )}
         <Link
           href={getHref(currentPage + 1)}
+          scroll={false}
           className={cn(
             buttonVariants({ variant: "outline", size: "sm" }),
             currentPage === totalPages ? "pointer-events-none opacity-50" : "",
@@ -478,7 +475,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
                         <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
                           <span>Time</span>
-                          <span>{formatTimeOnly(item.contributedAt)}</span>
+                          <span>{formatTimeInKenya(item.contributedAt)}</span>
                         </div>
 
                         <div className="mt-3 grid grid-cols-2 gap-2">
@@ -518,7 +515,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                           <TableRow key={item.id}>
                             <TableCell className="font-medium">{item.name}</TableCell>
                             <TableCell>{formatKes(item.amount)}</TableCell>
-                            <TableCell>{formatTimeOnly(item.contributedAt)}</TableCell>
+                            <TableCell>{formatTimeInKenya(item.contributedAt)}</TableCell>
                             <TableCell className="whitespace-nowrap">{formatDateTime(item.contributedAt)}</TableCell>
                             <TableCell>
                               {item.pledged ? (
