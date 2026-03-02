@@ -1,6 +1,5 @@
 import type { Contribution, Expense, RunningTotal } from "@/lib/types";
 import { isTransferRecordTitle } from "@/lib/expense-records";
-import { PINNED_CONTRIBUTION_ROWS } from "@/lib/pinned-contributions";
 import { formatDateTime, formatKes, normalizeName } from "@/lib/utils";
 
 export type DashboardMetrics = {
@@ -69,20 +68,11 @@ export function buildWhatsAppUpdateMessage(input: {
   includeAllRunningTotals?: boolean;
 }) {
   const { generatedAt, metrics, contributions } = input;
-  const fixedRows = PINNED_CONTRIBUTION_ROWS;
-  const normalizePinnedKey = (name: string, amount: number) =>
-    `${name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()}|${amount}`;
-  const fixedKeys = new Set(fixedRows.map((row) => normalizePinnedKey(row.name, row.amount)));
   const sortedByTime = [...contributions].sort(
     (a, b) => new Date(a.contributedAt).getTime() - new Date(b.contributedAt).getTime(),
   );
-  const dynamicCandidates = sortedByTime.filter(
-    (row) => !fixedKeys.has(normalizePinnedKey(row.name, row.amount)),
-  );
   const configuredMax = Number(process.env.WHATSAPP_EXPORT_MAX_ITEMS ?? "");
   const hasConfiguredMax = Number.isFinite(configuredMax) && configuredMax > 0;
-  const dynamicSlots = hasConfiguredMax ? Math.max(0, Math.floor(configuredMax) - fixedRows.length) : dynamicCandidates.length;
-  const visibleDynamic = dynamicSlots > 0 ? dynamicCandidates.slice(-dynamicSlots) : [];
 
   const formatPlainAmount = (amount: number) => new Intl.NumberFormat("en-KE").format(amount);
   const budgetLine =
@@ -105,13 +95,10 @@ export function buildWhatsAppUpdateMessage(input: {
   lines.push(`*${officialRecipientName}* - *${officialRecipientPhone}*`);
   lines.push("");
 
-  let visibleList = [
-    ...fixedRows.map((row) => ({ name: row.name, amount: row.amount })),
-    ...visibleDynamic.map((row) => ({ name: row.name, amount: row.amount })),
-  ];
+  let visibleList = sortedByTime.map((row) => ({ name: row.name, amount: row.amount }));
 
   if (hasConfiguredMax) {
-    visibleList = visibleList.slice(0, Math.floor(configuredMax));
+    visibleList = visibleList.slice(-Math.floor(configuredMax));
   }
 
   if (visibleList.length === 0) {
