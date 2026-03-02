@@ -4,6 +4,8 @@ import { formatDateTime, formatKes, normalizeName } from "@/lib/utils";
 
 export type DashboardMetrics = {
   totalCollected: number;
+  pledgedAmount: number;
+  pledgedCount: number;
   lastUpdateAt: string | null;
   newSinceLastUpdateAmount: number;
   newSinceLastUpdateCount: number;
@@ -46,6 +48,7 @@ export function computeRunningTotals(contributions: Contribution[]): RunningTota
 
 export function computeDashboardMetrics(contributions: Contribution[], lastCutoffAt: string | null): DashboardMetrics {
   const totalCollected = contributions.reduce((sum, item) => sum + item.amount, 0);
+  const pledgedContributions = contributions.filter((item) => item.pledged);
   const lastUpdateMs = lastCutoffAt ? new Date(lastCutoffAt).getTime() : null;
   const newContributions = contributions
     .filter((item) => (lastUpdateMs === null ? true : new Date(item.contributedAt).getTime() > lastUpdateMs))
@@ -53,6 +56,8 @@ export function computeDashboardMetrics(contributions: Contribution[], lastCutof
 
   return {
     totalCollected,
+    pledgedAmount: pledgedContributions.reduce((sum, item) => sum + item.amount, 0),
+    pledgedCount: pledgedContributions.length,
     lastUpdateAt: lastCutoffAt,
     newSinceLastUpdateAmount: newContributions.reduce((sum, item) => sum + item.amount, 0),
     newSinceLastUpdateCount: newContributions.length,

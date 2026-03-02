@@ -53,7 +53,10 @@ async function loadIfNeeded(state: LedgerState) {
     const raw = await readFile(filePath, "utf8");
     const parsed = JSON.parse(raw) as Partial<LedgerState>;
     state.contributions = Array.isArray(parsed.contributions)
-      ? parsed.contributions.map((item) => ({ ...item, pledged: Boolean(item?.pledged) }))
+      ? parsed.contributions.map((item) => ({
+          ...item,
+          pledged: Boolean(item?.pledged),
+        }))
       : [];
     state.expenses = Array.isArray(parsed.expenses) ? parsed.expenses : [];
     state.updates = Array.isArray(parsed.updates) ? parsed.updates : [];

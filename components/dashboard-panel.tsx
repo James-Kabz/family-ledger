@@ -15,6 +15,8 @@ import { Textarea } from "@/components/ui/textarea";
 
 type Props = {
   totalCollected: number;
+  pledgedAmount: number;
+  pledgedCount: number;
   lastUpdatedAt: string | null;
   newAmount: number;
   newCount: number;
@@ -24,9 +26,18 @@ type Props = {
 const initialGenerateUpdateState: GenerateUpdateState = { message: "" };
 const RUNNING_TOTALS_PAGE_SIZE = 10;
 
-export function DashboardPanel({ totalCollected, lastUpdatedAt, newAmount, newCount, runningTotals }: Props) {
+export function DashboardPanel({
+  totalCollected,
+  pledgedAmount,
+  pledgedCount,
+  lastUpdatedAt,
+  newAmount,
+  newCount,
+  runningTotals,
+}: Props) {
   const [state, action] = useActionState(generateUpdateAction, initialGenerateUpdateState);
   const [includeAllRunningTotals, setIncludeAllRunningTotals] = useState(false);
+  const [showPledgedMoney, setShowPledgedMoney] = useState(false);
   const [page, setPage] = useState(1);
 
   const totalPages = Math.max(1, Math.ceil(runningTotals.length / RUNNING_TOTALS_PAGE_SIZE));
@@ -47,13 +58,28 @@ export function DashboardPanel({ totalCollected, lastUpdatedAt, newAmount, newCo
   return (
     <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
       <div className="space-y-6">
-        <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
+        <div className="flex justify-end">
+          <Button type="button" variant="outline" size="sm" onClick={() => setShowPledgedMoney((current) => !current)}>
+            {showPledgedMoney ? "Hide pledged money" : "View pledged money"}
+          </Button>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-4">
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Total collected</CardDescription>
               <CardTitle className="text-2xl">{formatKes(effectiveTotalCollected)}</CardTitle>
             </CardHeader>
           </Card>
+          {showPledgedMoney ? (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription>Pledged money</CardDescription>
+                <CardTitle className="text-2xl">{formatKes(pledgedAmount)}</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0 text-sm text-muted-foreground">{pledgedCount} pledged contribution(s)</CardContent>
+            </Card>
+          ) : null}
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>New since last update</CardDescription>

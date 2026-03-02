@@ -44,21 +44,46 @@ function prismaClientOutOfDateMessage() {
 }
 
 function isMissingTableError(error: unknown) {
+  const code = getErrorCode(error);
+  if (code === "P2021") return true;
+  const message = getErrorMessage(error).toLowerCase();
   return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: string }).code === "P2021"
+    (message.includes("table") && message.includes("does not exist")) ||
+    (message.includes("relation") && message.includes("does not exist"))
   );
 }
 
 function isMissingColumnError(error: unknown) {
+  const code = getErrorCode(error);
+  if (code === "P2022") return true;
+  const message = getErrorMessage(error).toLowerCase();
   return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: string }).code === "P2022"
+    (message.includes("column") && message.includes("does not exist")) ||
+    message.includes("no such column")
   );
+}
+
+function getErrorCode(error: unknown): string | null {
+  if (typeof error !== "object" || error === null) return null;
+  if ("code" in error && typeof (error as { code?: unknown }).code === "string") {
+    return (error as { code: string }).code;
+  }
+  if ("cause" in error) {
+    return getErrorCode((error as { cause?: unknown }).cause ?? null);
+  }
+  return null;
+}
+
+function getErrorMessage(error: unknown): string {
+  if (typeof error === "string") return error;
+  if (typeof error !== "object" || error === null) return "";
+  const direct =
+    "message" in error && typeof (error as { message?: unknown }).message === "string"
+      ? (error as { message: string }).message
+      : "";
+  const nested =
+    "cause" in error ? getErrorMessage((error as { cause?: unknown }).cause ?? null) : "";
+  return `${direct} ${nested}`.trim();
 }
 
 function missingSchemaMessage() {
@@ -111,6 +136,29 @@ function mapContribution(row: any): Contribution {
   };
 }
 
+const contributionSelectWithPledged = {
+  id: true,
+  name: true,
+  amount: true,
+  ref: true,
+  pledged: true,
+  contributedAt: true,
+  note: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
+const contributionSelectLegacy = {
+  id: true,
+  name: true,
+  amount: true,
+  ref: true,
+  contributedAt: true,
+  note: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
 function mapUpdate(row: any): LedgerUpdate {
   return {
     id: row.id,
@@ -145,17 +193,7 @@ export class PrismaRepository implements LedgerRepository {
     const prisma = await getPrisma();
     try {
       const rows = await prisma.contribution.findMany({
-        select: {
-          id: true,
-          name: true,
-          amount: true,
-          ref: true,
-          pledged: true,
-          contributedAt: true,
-          note: true,
-          createdAt: true,
-          updatedAt: true,
-        },
+        select: contributionSelectWithPledged,
         orderBy: [{ contributedAt: "desc" }, { createdAt: "desc" }],
       });
       return rows.map(mapContribution);
@@ -166,16 +204,7 @@ export class PrismaRepository implements LedgerRepository {
 
     try {
       const rows = await prisma.contribution.findMany({
-        select: {
-          id: true,
-          name: true,
-          amount: true,
-          ref: true,
-          contributedAt: true,
-          note: true,
-          createdAt: true,
-          updatedAt: true,
-        },
+        select: contributionSelectLegacy,
         orderBy: [{ contributedAt: "desc" }, { createdAt: "desc" }],
       });
       return rows.map((row) => mapContribution({ ...row, pledged: false }));
@@ -200,6 +229,7 @@ export class PrismaRepository implements LedgerRepository {
     let row: any;
     try {
       row = await prisma.contribution.create({
+        select: contributionSelectWithPledged,
         data: {
           name: normalizeName(input.name),
           amount: input.amount,
@@ -211,15 +241,35 @@ export class PrismaRepository implements LedgerRepository {
       });
     } catch (error) {
       if (isMissingColumnError(error)) {
-        row = await prisma.contribution.create({
-          data: {
-            name: normalizeName(input.name),
-            amount: input.amount,
-            ref,
-            contributedAt: input.contributedAt ? new Date(input.contributedAt) : new Date(),
-            note: input.note?.trim() || null,
-          },
-        });
+        try {
+          row = await prisma.contribution.create({
+            select: contributionSelectWithPledged,
+            data: {
+              name: normalizeName(input.name),
+              amount: input.amount,
+              ref,
+              pledged: Boolean(input.pledged),
+              contributedAt: input.contributedAt ? new Date(input.contributedAt) : new Date(),
+              note: input.note?.trim() || null,
+            },
+          });
+        } catch (fallbackError) {
+          if (isMissingColumnError(fallbackError)) {
+            row = await prisma.contribution.create({
+              select: contributionSelectLegacy,
+              data: {
+                name: normalizeName(input.name),
+                amount: input.amount,
+                ref,
+                contributedAt: input.contributedAt ? new Date(input.contributedAt) : new Date(),
+                note: input.note?.trim() || null,
+              },
+            });
+            row = { ...row, pledged: false };
+          } else {
+            throw fallbackError;
+          }
+        }
       } else if (isMissingTableError(error)) {
         throw new Error(missingSchemaMessage());
       } else {

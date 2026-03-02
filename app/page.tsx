@@ -306,6 +306,9 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <a href="/api/export/transactions" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
+            Export Excel
+          </a>
           <ContributorSearchModal contributions={contributions} />
           <LogoutButton />
         </div>
@@ -404,6 +407,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         <div className="space-y-6">
           <DashboardPanel
             totalCollected={metrics.totalCollected}
+            pledgedAmount={metrics.pledgedAmount}
+            pledgedCount={metrics.pledgedCount}
             lastUpdatedAt={latestUpdate?.cutoffAt ?? null}
             newAmount={metrics.newSinceLastUpdateAmount}
             newCount={metrics.newSinceLastUpdateCount}
