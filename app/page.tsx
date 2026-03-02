@@ -25,6 +25,7 @@ export const dynamic = "force-dynamic";
 type PageProps = {
   searchParams?: Promise<{
     day?: string | string[];
+    page?: string | string[];
   }>;
 };
 
@@ -39,6 +40,16 @@ type FilterPanelBodyProps = {
   visibleCount: number;
   visibleTotal: number;
 };
+
+type LedgerPaginationProps = {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  pageSize: number;
+  getHref(page: number): string;
+};
+
+const LEDGER_PAGE_SIZE = 12;
 
 function toDayKey(date: Date) {
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -69,15 +80,100 @@ function getDayKeyForContribution(item: Contribution) {
   return toDayKey(new Date(item.contributedAt));
 }
 
-function buildDashboardHref(input: { dayMode: "day" | "all"; dayKey: string }) {
+function parsePositiveInt(value: string | undefined) {
+  if (!value) return null;
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
+}
+
+function buildDashboardHref(input: { dayMode: "day" | "all"; dayKey: string; page?: number }) {
   const params = new URLSearchParams();
   if (input.dayMode === "all") {
     params.set("day", "all");
   } else if (input.dayKey) {
     params.set("day", input.dayKey);
   }
+  if (input.page && input.page > 1) {
+    params.set("page", String(input.page));
+  }
   const query = params.toString();
   return query ? `/?${query}` : "/";
+}
+
+function getLedgerPageItems(currentPage: number, totalPages: number) {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  const items: Array<number | "ellipsis"> = [1];
+  const windowStart = Math.max(2, currentPage - 1);
+  const windowEnd = Math.min(totalPages - 1, currentPage + 1);
+
+  if (windowStart > 2) items.push("ellipsis");
+  for (let page = windowStart; page <= windowEnd; page += 1) {
+    items.push(page);
+  }
+  if (windowEnd < totalPages - 1) items.push("ellipsis");
+  items.push(totalPages);
+
+  return items;
+}
+
+function LedgerPagination({ currentPage, totalPages, totalItems, pageSize, getHref }: LedgerPaginationProps) {
+  if (totalPages <= 1) return null;
+
+  const pageStart = (currentPage - 1) * pageSize;
+  const start = pageStart + 1;
+  const end = Math.min(currentPage * pageSize, totalItems);
+  const pageItems = getLedgerPageItems(currentPage, totalPages);
+
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border bg-muted/20 p-3 sm:flex-row sm:items-center sm:justify-between">
+      <p className="text-xs text-muted-foreground">
+        Showing {start}-{end} of {totalItems}
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <Link
+          href={getHref(currentPage - 1)}
+          className={cn(
+            buttonVariants({ variant: "outline", size: "sm" }),
+            currentPage === 1 ? "pointer-events-none opacity-50" : "",
+          )}
+          aria-disabled={currentPage === 1}
+          tabIndex={currentPage === 1 ? -1 : undefined}
+        >
+          Prev
+        </Link>
+        {pageItems.map((item, index) =>
+          item === "ellipsis" ? (
+            <span key={`ellipsis-${index}`} className="px-1 text-xs text-muted-foreground">
+              ...
+            </span>
+          ) : (
+            <Link
+              key={`page-${item}`}
+              href={getHref(item)}
+              className={cn(buttonVariants({ variant: item === currentPage ? "default" : "outline", size: "sm" }))}
+            >
+              {item}
+            </Link>
+          ),
+        )}
+        <Link
+          href={getHref(currentPage + 1)}
+          className={cn(
+            buttonVariants({ variant: "outline", size: "sm" }),
+            currentPage === totalPages ? "pointer-events-none opacity-50" : "",
+          )}
+          aria-disabled={currentPage === totalPages}
+          tabIndex={currentPage === totalPages ? -1 : undefined}
+        >
+          Next
+        </Link>
+      </div>
+    </div>
+  );
 }
 
 function LedgerFilterPanelBody({
@@ -163,6 +259,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
   const params = (await searchParams) ?? {};
   const dayParam = Array.isArray(params.day) ? params.day[0] : params.day;
+  const pageParam = Array.isArray(params.page) ? params.page[0] : params.page;
 
   const repo = getRepository();
   await ensureDefaultSeedContributions(repo);
@@ -187,11 +284,20 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       ? contributions
       : contributions.filter((item) => getDayKeyForContribution(item) === selectedDayKey);
   const visibleContributions = dayFilteredContributions;
+  const totalPages = Math.max(1, Math.ceil(visibleContributions.length / LEDGER_PAGE_SIZE));
+  const requestedPage = parsePositiveInt(pageParam) ?? 1;
+  const currentPage = Math.min(requestedPage, totalPages);
+  const pageOffset = (currentPage - 1) * LEDGER_PAGE_SIZE;
+  const paginatedVisibleContributions = visibleContributions.slice(pageOffset, pageOffset + LEDGER_PAGE_SIZE);
 
   const visibleTotal = visibleContributions.reduce((sum, item) => sum + item.amount, 0);
-  const todayHref = buildDashboardHref({ dayMode: "day", dayKey: todayKey });
-  const yesterdayHref = buildDashboardHref({ dayMode: "day", dayKey: yesterdayKey });
-  const allHref = buildDashboardHref({ dayMode: "all", dayKey: selectedDayKey });
+  const todayHref = buildDashboardHref({ dayMode: "day", dayKey: todayKey, page: 1 });
+  const yesterdayHref = buildDashboardHref({ dayMode: "day", dayKey: yesterdayKey, page: 1 });
+  const allHref = buildDashboardHref({ dayMode: "all", dayKey: selectedDayKey, page: 1 });
+  const getLedgerPageHref = (page: number) => {
+    const normalized = Math.min(Math.max(page, 1), totalPages);
+    return buildDashboardHref({ dayMode: selectedDayMode, dayKey: selectedDayKey, page: normalized });
+  };
 
   return (
     <div className="space-y-5 sm:space-y-6">
@@ -318,13 +424,38 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                   : `Entries recorded on ${formatDayLabel(selectedDayKey)}.`}
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
               {visibleContributions.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No contributions found for this view.</p>
               ) : (
                 <>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    <div className="rounded-lg border bg-muted/20 p-3">
+                      <p className="text-xs text-muted-foreground">Records in this view</p>
+                      <p className="text-sm font-semibold">{visibleContributions.length}</p>
+                    </div>
+                    <div className="rounded-lg border bg-muted/20 p-3">
+                      <p className="text-xs text-muted-foreground">Total amount in this view</p>
+                      <p className="text-sm font-semibold">{formatKes(visibleTotal)}</p>
+                    </div>
+                    <div className="rounded-lg border bg-muted/20 p-3">
+                      <p className="text-xs text-muted-foreground">Current page</p>
+                      <p className="text-sm font-semibold">
+                        {currentPage} / {totalPages}
+                      </p>
+                    </div>
+                  </div>
+
+                  <LedgerPagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalItems={visibleContributions.length}
+                    pageSize={LEDGER_PAGE_SIZE}
+                    getHref={getLedgerPageHref}
+                  />
+
                   <div className="space-y-3 md:hidden">
-                    {visibleContributions.map((item) => (
+                    {paginatedVisibleContributions.map((item) => (
                       <div key={item.id} className="rounded-xl border bg-background p-3">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
@@ -383,7 +514,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {visibleContributions.map((item) => (
+                        {paginatedVisibleContributions.map((item) => (
                           <TableRow key={item.id}>
                             <TableCell className="font-medium">{item.name}</TableCell>
                             <TableCell>{formatKes(item.amount)}</TableCell>
@@ -425,6 +556,14 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                       </TableBody>
                     </Table>
                   </div>
+
+                  <LedgerPagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalItems={visibleContributions.length}
+                    pageSize={LEDGER_PAGE_SIZE}
+                    getHref={getLedgerPageHref}
+                  />
                 </>
               )}
             </CardContent>
