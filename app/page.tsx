@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { ContributionForm } from "@/components/contribution-form";
+import { ContributorSearchModal } from "@/components/contributor-search-modal";
 import { DashboardPanel } from "@/components/dashboard-panel";
 import { ExpensesPanel } from "@/components/expenses-panel";
 import { LogoutButton } from "@/components/logout-button";
@@ -32,6 +33,9 @@ type FilterPanelBodyProps = {
   selectedDayKey: string;
   todayKey: string;
   yesterdayKey: string;
+  todayHref: string;
+  yesterdayHref: string;
+  allHref: string;
   visibleCount: number;
   visibleTotal: number;
 };
@@ -65,11 +69,25 @@ function getDayKeyForContribution(item: Contribution) {
   return toDayKey(new Date(item.contributedAt));
 }
 
+function buildDashboardHref(input: { dayMode: "day" | "all"; dayKey: string }) {
+  const params = new URLSearchParams();
+  if (input.dayMode === "all") {
+    params.set("day", "all");
+  } else if (input.dayKey) {
+    params.set("day", input.dayKey);
+  }
+  const query = params.toString();
+  return query ? `/?${query}` : "/";
+}
+
 function LedgerFilterPanelBody({
   selectedDayMode,
   selectedDayKey,
   todayKey,
   yesterdayKey,
+  todayHref,
+  yesterdayHref,
+  allHref,
   visibleCount,
   visibleTotal,
 }: FilterPanelBodyProps) {
@@ -77,7 +95,7 @@ function LedgerFilterPanelBody({
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
         <Link
-          href="/"
+          href={todayHref}
           className={cn(
             buttonVariants({
               variant: selectedDayMode === "day" && selectedDayKey === todayKey ? "default" : "outline",
@@ -88,7 +106,7 @@ function LedgerFilterPanelBody({
           Today
         </Link>
         <Link
-          href={`/?day=${yesterdayKey}`}
+          href={yesterdayHref}
           className={cn(
             buttonVariants({
               variant: selectedDayMode === "day" && selectedDayKey === yesterdayKey ? "default" : "outline",
@@ -99,7 +117,7 @@ function LedgerFilterPanelBody({
           Yesterday
         </Link>
         <Link
-          href="/?day=all"
+          href={allHref}
           className={cn(
             buttonVariants({
               variant: selectedDayMode === "all" ? "default" : "outline",
@@ -122,7 +140,7 @@ function LedgerFilterPanelBody({
           <SubmitButton size="sm" pendingLabel="Applying..." className="flex-1 sm:flex-none">
             Apply
           </SubmitButton>
-          <Link href="/?day=all" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "flex-1 sm:flex-none")}>
+          <Link href={allHref} className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "flex-1 sm:flex-none")}>
             Clear
           </Link>
         </div>
@@ -164,12 +182,16 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const selectedDayMode = dayParam === "all" ? "all" : "day";
   const selectedDayKey = selectedDayMode === "day" && isValidDayKey(dayParam) ? dayParam : todayKey;
 
-  const visibleContributions =
+  const dayFilteredContributions =
     selectedDayMode === "all"
       ? contributions
       : contributions.filter((item) => getDayKeyForContribution(item) === selectedDayKey);
+  const visibleContributions = dayFilteredContributions;
 
   const visibleTotal = visibleContributions.reduce((sum, item) => sum + item.amount, 0);
+  const todayHref = buildDashboardHref({ dayMode: "day", dayKey: todayKey });
+  const yesterdayHref = buildDashboardHref({ dayMode: "day", dayKey: yesterdayKey });
+  const allHref = buildDashboardHref({ dayMode: "all", dayKey: selectedDayKey });
 
   return (
     <div className="space-y-5 sm:space-y-6">
@@ -180,7 +202,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             One-page workflow for quick entry, day filtering, and WhatsApp updates.
           </p>
         </div>
-        <LogoutButton />
+        <div className="flex items-center gap-2">
+          <ContributorSearchModal contributions={contributions} />
+          <LogoutButton />
+        </div>
       </div>
 
       <Card className="border-emerald-200 bg-emerald-50/40">
@@ -226,6 +251,9 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                   selectedDayKey={selectedDayKey}
                   todayKey={todayKey}
                   yesterdayKey={yesterdayKey}
+                  todayHref={todayHref}
+                  yesterdayHref={yesterdayHref}
+                  allHref={allHref}
                   visibleCount={visibleContributions.length}
                   visibleTotal={visibleTotal}
                 />
@@ -260,6 +288,9 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                 selectedDayKey={selectedDayKey}
                 todayKey={todayKey}
                 yesterdayKey={yesterdayKey}
+                todayHref={todayHref}
+                yesterdayHref={yesterdayHref}
+                allHref={allHref}
                 visibleCount={visibleContributions.length}
                 visibleTotal={visibleTotal}
               />
