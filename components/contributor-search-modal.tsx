@@ -14,6 +14,12 @@ type ContributorSummary = {
   total: number;
   count: number;
   lastContributedAt: string;
+  contributions: Array<{
+    id: string;
+    amount: number;
+    contributedAt: string;
+    pledged: boolean;
+  }>;
 };
 
 type Props = {
@@ -35,12 +41,26 @@ function summarize(contributions: Contribution[]): ContributorSummary[] {
         total: item.amount,
         count: 1,
         lastContributedAt: item.contributedAt,
+        contributions: [
+          {
+            id: item.id,
+            amount: item.amount,
+            contributedAt: item.contributedAt,
+            pledged: item.pledged,
+          },
+        ],
       });
       continue;
     }
 
     existing.total += item.amount;
     existing.count += 1;
+    existing.contributions.push({
+      id: item.id,
+      amount: item.amount,
+      contributedAt: item.contributedAt,
+      pledged: item.pledged,
+    });
     if (new Date(item.contributedAt).getTime() > new Date(existing.lastContributedAt).getTime()) {
       existing.lastContributedAt = item.contributedAt;
     }
@@ -55,7 +75,14 @@ function summarize(contributions: Contribution[]): ContributorSummary[] {
 export function ContributorSearchModal({ contributions }: Props) {
   const [query, setQuery] = useState("");
   const q = normalizeName(query).toLowerCase();
-  const rows = summarize(contributions).filter((row) => (q ? row.name.toLowerCase().includes(q) : true));
+  const rows = summarize(contributions)
+    .filter((row) => (q ? row.name.toLowerCase().includes(q) : true))
+    .map((row) => ({
+      ...row,
+      contributions: [...row.contributions].sort(
+        (a, b) => new Date(b.contributedAt).getTime() - new Date(a.contributedAt).getTime(),
+      ),
+    }));
 
   return (
     <Dialog>
@@ -84,13 +111,45 @@ export function ContributorSearchModal({ contributions }: Props) {
             ) : (
               rows.map((row) => (
                 <div key={row.key} className="rounded-md border bg-background px-3 py-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm font-semibold">{row.name}</p>
-                    <p className="text-sm font-semibold">{formatKes(row.total)}</p>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {row.count} contribution(s) • Last: {formatDateTime(row.lastContributedAt)}
-                  </p>
+                  {row.count > 1 ? (
+                    <details>
+                      <summary className="cursor-pointer list-none">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-sm font-semibold">{row.name}</p>
+                          <p className="text-sm font-semibold">{formatKes(row.total)}</p>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {row.count} contribution(s) • Last: {formatDateTime(row.lastContributedAt)}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">Expand to see contribution breakdown</p>
+                      </summary>
+                      <div className="mt-2 space-y-2 border-t pt-2">
+                        {row.contributions.map((item) => (
+                          <div key={item.id} className="flex items-center justify-between gap-2 rounded border px-2 py-1 text-xs">
+                            <div className="text-muted-foreground">
+                              {formatDateTime(item.contributedAt)}
+                              {item.pledged ? " • Pledged" : ""}
+                            </div>
+                            <div className="font-medium">{formatKes(item.amount)}</div>
+                          </div>
+                        ))}
+                        <div className="flex items-center justify-between border-t pt-2 text-xs font-semibold">
+                          <span>Total</span>
+                          <span>{formatKes(row.total)}</span>
+                        </div>
+                      </div>
+                    </details>
+                  ) : (
+                    <>
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-semibold">{row.name}</p>
+                        <p className="text-sm font-semibold">{formatKes(row.total)}</p>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {row.count} contribution(s) • Last: {formatDateTime(row.lastContributedAt)}
+                      </p>
+                    </>
+                  )}
                 </div>
               ))
             )}
