@@ -295,6 +295,21 @@ export class PrismaRepository implements LedgerRepository {
     }
   }
 
+  async updateContributionName(id: string, name: string): Promise<void> {
+    const prisma = await getPrisma();
+    try {
+      await prisma.contribution.update({
+        where: { id },
+        data: { name: normalizeName(name) },
+      });
+    } catch (error) {
+      if (isMissingTableError(error)) {
+        throw new Error(missingSchemaMessage());
+      }
+      throw error;
+    }
+  }
+
   async deleteContribution(id: string): Promise<void> {
     const prisma = await getPrisma();
     try {

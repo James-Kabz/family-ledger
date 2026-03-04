@@ -12,7 +12,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { deleteContributionAction, toggleContributionPledgedAction } from "@/lib/actions";
+import { deleteContributionAction, editContributionNameAction, toggleContributionPledgedAction } from "@/lib/actions";
 import { requireAuth } from "@/lib/auth/session";
 import { ensureDefaultSeedContributions } from "@/lib/default-seed";
 import { computeDashboardMetrics } from "@/lib/ledger";
@@ -483,6 +483,14 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                           <span>{formatTimeInKenya(item.contributedAt)}</span>
                         </div>
 
+                        <form action={editContributionNameAction} className="mt-3 flex items-center gap-2">
+                          <input type="hidden" name="id" value={item.id} />
+                          <Input name="name" defaultValue={item.name} required minLength={2} maxLength={120} className="h-8" />
+                          <SubmitButton variant="outline" size="sm" pendingLabel="Saving..." className="shrink-0">
+                            Save name
+                          </SubmitButton>
+                        </form>
+
                         <div className="mt-3 grid grid-cols-2 gap-2">
                           <form action={toggleContributionPledgedAction}>
                             <input type="hidden" name="id" value={item.id} />
@@ -512,7 +520,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                           <TableHead>Full timestamp</TableHead>
                           <TableHead>Status</TableHead>
                           <TableHead>Note</TableHead>
-                          <TableHead className="w-[240px]">Action</TableHead>
+                          <TableHead className="w-[360px]">Action</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -537,20 +545,29 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                               {item.note ?? <span className="text-muted-foreground">-</span>}
                             </TableCell>
                             <TableCell>
-                              <div className="flex items-center gap-2">
-                                <form action={toggleContributionPledgedAction}>
+                              <div className="space-y-2">
+                                <form action={editContributionNameAction} className="flex items-center gap-2">
                                   <input type="hidden" name="id" value={item.id} />
-                                  <input type="hidden" name="pledged" value={item.pledged ? "false" : "true"} />
-                                  <SubmitButton variant="outline" size="sm" pendingLabel="Updating...">
-                                    {item.pledged ? "Mark received" : "Mark pledged"}
+                                  <Input name="name" defaultValue={item.name} required minLength={2} maxLength={120} className="h-8" />
+                                  <SubmitButton variant="outline" size="sm" pendingLabel="Saving..." className="shrink-0">
+                                    Save name
                                   </SubmitButton>
                                 </form>
-                                <form action={deleteContributionAction}>
-                                  <input type="hidden" name="id" value={item.id} />
-                                  <SubmitButton variant="destructive" size="sm" pendingLabel="Deleting...">
-                                    Delete
-                                  </SubmitButton>
-                                </form>
+                                <div className="flex items-center gap-2">
+                                  <form action={toggleContributionPledgedAction}>
+                                    <input type="hidden" name="id" value={item.id} />
+                                    <input type="hidden" name="pledged" value={item.pledged ? "false" : "true"} />
+                                    <SubmitButton variant="outline" size="sm" pendingLabel="Updating...">
+                                      {item.pledged ? "Mark received" : "Mark pledged"}
+                                    </SubmitButton>
+                                  </form>
+                                  <form action={deleteContributionAction}>
+                                    <input type="hidden" name="id" value={item.id} />
+                                    <SubmitButton variant="destructive" size="sm" pendingLabel="Deleting...">
+                                      Delete
+                                    </SubmitButton>
+                                  </form>
+                                </div>
                               </div>
                             </TableCell>
                           </TableRow>

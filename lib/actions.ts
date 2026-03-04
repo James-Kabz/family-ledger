@@ -122,6 +122,23 @@ export async function toggleContributionPledgedAction(formData: FormData) {
   revalidatePath("/contributions");
 }
 
+export async function editContributionNameAction(formData: FormData) {
+  await requireAuth();
+  const id = String(formData.get("id") ?? "").trim();
+  const name = String(formData.get("name") ?? "").trim();
+  if (!id) return;
+
+  if (name.length < 2 || name.length > 120) {
+    return;
+  }
+
+  const repo = getRepository();
+  await repo.updateContributionName(id, name);
+
+  revalidatePath("/");
+  revalidatePath("/contributions");
+}
+
 export async function deleteContributionAction(formData: FormData) {
   await requireAuth();
   const id = String(formData.get("id") ?? "").trim();

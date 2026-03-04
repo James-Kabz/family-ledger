@@ -141,6 +141,15 @@ export class InMemoryRepository implements LedgerRepository {
     await persist(this.state);
   }
 
+  async updateContributionName(id: string, name: string): Promise<void> {
+    await loadIfNeeded(this.state);
+    const now = new Date().toISOString();
+    this.state.contributions = this.state.contributions.map((item) =>
+      item.id === id ? { ...item, name: normalizeName(name), updatedAt: now } : item,
+    );
+    await persist(this.state);
+  }
+
   async deleteContribution(id: string): Promise<void> {
     await loadIfNeeded(this.state);
     this.state.contributions = this.state.contributions.filter((item) => item.id !== id);

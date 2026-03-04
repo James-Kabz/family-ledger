@@ -28,6 +28,7 @@ export type CreateExpenseUpdateInput = {
 export interface LedgerRepository {
   listContributions(): Promise<Contribution[]>;
   createContribution(input: CreateContributionInput): Promise<Contribution>;
+  updateContributionName(id: string, name: string): Promise<void>;
   updateContributionPledged(id: string, pledged: boolean): Promise<void>;
   deleteContribution(id: string): Promise<void>;
   getLatestUpdate(): Promise<LedgerUpdate | null>;
